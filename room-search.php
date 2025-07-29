@@ -372,28 +372,31 @@ class HotelRoomSearcher {
                     // Show only the first combination
                     html += '<div class="combo-option">';
                     html += '<strong>Option 1' + (totalOptions > 1 ? ' of ' + totalOptions : '') + ':</strong><br>';
-                    
+                    var productIds = [];
                     $.each(firstCombo, function(roomIndex, room) {
                         html += '<div class="room-details">';
                         html += '<div class="room-info">';
                         html += '<strong>Room ' + room.nr + '</strong> - ' + room.typeName + '<br>';
                         html += 'Max Adults: ' + room.adultMax + ', Max Children: ' + room.kidMax;
-                        
-                        // Add price if available
                         if (room.product_price) {
                             html += '<br><span class="room-price">Price: $' + room.product_price + '</span>';
                         }
-                        
                         html += '</div>';
-                        
                         if (room.product_url) {
                             html += '<div class="room-actions">';
                             html += '<a href="' + room.product_url + '" class="view-product-btn" target="_blank">View Details</a>';
                             html += '</div>';
                         }
-                        
                         html += '</div>';
+                        if (room.product_id) {
+                            productIds.push(room.product_id);
+                        }
                     });
+                    if (productIds.length > 0) {
+                        html += '<div class="room-actions" style="margin-top:10px;">';
+                        html += '<button class="add-combo-to-cart-btn" data-product-ids="' + productIds.join(',') + '">Add All To Cart</button>';
+                        html += '</div>';
+                    }
                     
                     // Add "View more options" link if there are multiple options
                     /*
@@ -429,80 +432,106 @@ class HotelRoomSearcher {
             function showSingleOption(roomType, typeData, $container, $button) {
                 var firstCombo = typeData.combo[0];
                 var totalOptions = typeData.combo.length;
-                
                 var html = '<strong>Option 1' + (totalOptions > 1 ? ' of ' + totalOptions : '') + ':</strong><br>';
-                
+                var productIds = [];
                 $.each(firstCombo, function(roomIndex, room) {
                     html += '<div class="room-details">';
                     html += '<div class="room-info">';
                     html += '<strong>Room ' + room.nr + '</strong> - ' + room.typeName + '<br>';
                     html += 'Max Adults: ' + room.adultMax + ', Max Children: ' + room.kidMax;
-                    
                     if (room.product_price) {
                         html += '<br><span class="room-price">Price: $' + room.product_price + '</span>';
                     }
-                    
                     html += '</div>';
-                    
                     if (room.product_url) {
                         html += '<div class="room-actions">';
                         html += '<a href="' + room.product_url + '" class="view-product-btn" target="_blank">View Details</a>';
                         html += '</div>';
                     }
-                    
                     html += '</div>';
+                    if (room.product_id) {
+                        productIds.push(room.product_id);
+                    }
                 });
+               
+                    html += '<div class="room-actions" style="margin-top:10px;">';
+                    html += '<button class="add-combo-to-cart-btn" data-product-ids="' + productIds.join(',') + '">Add All To Cart</button>';
+                    html += '</div>';
                 
                 html += '<div class="more-options">';
                 html += '<button class="show-more-btn" data-room-type="' + roomType + '">Show ' + (totalOptions - 1) + ' more option(s)</button>';
                 html += '</div>';
-                
                 $container.html(html);
                 $button.removeClass('expanded');
             }
             
             function showAllOptions(roomType, typeData, $container, $button) {
                 var html = '';
-                
                 $.each(typeData.combo, function(index, combo) {
                     html += '<div class="single-combo-option">';
                     html += '<strong>Option ' + (index + 1) + ' of ' + typeData.combo.length + ':</strong><br>';
-                    
+                    var productIds = [];
                     $.each(combo, function(roomIndex, room) {
                         html += '<div class="room-details">';
                         html += '<div class="room-info">';
                         html += '<strong>Room ' + room.nr + '</strong> - ' + room.typeName + '<br>';
                         html += 'Max Adults: ' + room.adultMax + ', Max Children: ' + room.kidMax;
-                        
                         if (room.product_price) {
                             html += '<br><span class="room-price">Price: $' + room.product_price + '</span>';
                         }
-                        
                         html += '</div>';
-                        
                         if (room.product_url) {
                             html += '<div class="room-actions">';
                             html += '<a href="' + room.product_url + '" class="view-product-btn" target="_blank">View Details</a>';
                             html += '</div>';
                         }
-                        
                         html += '</div>';
+                        if (room.product_id) {
+                            productIds.push(room.product_id);
+                        }
                     });
-                    
+                    if (productIds.length > 0) {
+                        html += '<div class="room-actions" style="margin-top:10px;">';
+                        html += '<button class="add-combo-to-cart-btn" data-product-ids="' + productIds.join(',') + '">Add All To Cart</button>';
+                        html += '</div>';
+                    }
                     html += '</div>';
-                    
                     if (index < typeData.combo.length - 1) {
                         html += '<hr class="option-separator">';
                     }
                 });
-                
                 html += '<div class="more-options">';
                 html += '<button class="show-more-btn expanded" data-room-type="' + roomType + '">Show less</button>';
                 html += '</div>';
-                
                 $container.html(html);
                 $button.addClass('expanded');
             }
+            // Add all products in a combo to cart
+            $(document).on('click', '.add-combo-to-cart-btn', function(e) {
+                e.preventDefault();
+                var btn = $(this);
+                var productIds = btn.data('product-ids').toString().split(',');
+                if (!productIds.length) return;
+                btn.prop('disabled', true).text('Adding...');
+                var addCount = 0;
+                var failed = false;
+                function addNext() {
+                    if (addCount >= productIds.length) {
+                        btn.text('Added!').prop('disabled', false);
+                        // Optionally, redirect to cart or show a message
+                        return;
+                    }
+                    var productId = productIds[addCount];
+                    $.post('/?add-to-cart=' + productId, function() {
+                        addCount++;
+                        addNext();
+                    }).fail(function() {
+                        failed = true;
+                        btn.text('Error adding to cart').prop('disabled', false);
+                    });
+                }
+                addNext();
+            });
         });
         </script>
         <?php
@@ -629,7 +658,7 @@ class HotelRoomSearcher {
                     }
                     
                     // Find corresponding WooCommerce product
-                    $product = $this->find_product_by_room_number($room['nr']);
+                    $product = $this->find_product_by_room_type($room['type']);
                     
                     if ($product) {
                         $room['product_id'] = $product->ID;
@@ -651,17 +680,17 @@ class HotelRoomSearcher {
     }
     
     /**
-     * Find WooCommerce product by room number
+     * Find WooCommerce product by room type
      */
-    private function find_product_by_room_number($room_number) {
+    private function find_product_by_room_type($room_tip) {
+        // Now search by room type (tip) instead of room number
         $posts = get_posts(array(
             'post_type' => 'product',
-            'meta_key' => '_hotel_room_number',
-            'meta_value' => $room_number,
+            'meta_key' => '_hotel_room_type',
+            'meta_value' => $room_tip, // $room_tip now represents the type
             'posts_per_page' => 1,
             'post_status' => 'publish'
         ));
-        
         return !empty($posts) ? $posts[0] : null;
     }
     

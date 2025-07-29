@@ -207,10 +207,10 @@ class HotelRoomsImporter {
         $updated = 0;
         $skipped = 0;
         $errors = 0;
-        
+
         $update_existing = isset($options['update_existing']) ? (bool) $options['update_existing'] : true;
         $create_categories = isset($options['create_categories']) ? (bool) $options['create_categories'] : true;
-        
+
         $this->log('Starting import of ' . count($room_types_data) . ' room types...');
         foreach ($room_types_data as $room_type) {
             // Validate required fields
@@ -253,68 +253,14 @@ class HotelRoomsImporter {
                     break;
             }
         }
-        return array(
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
-            'errors' => $errors,
-            'total' => $created + $updated + $skipped + $errors,
-            'message' => "Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}",
-            'log' => $this->log_messages
-        );
-        foreach ($room_types_data as $room_type) {
-            // Validate required fields
-            if (!isset($room_type['tip']) || !isset($room_type['room_numbers']) || !is_array($room_type['room_numbers'])) {
-                $this->log('Skipping invalid room type data: ' . json_encode($room_type));
-                $errors++;
-                continue;
-            }
-            
-            // Just pass the room type and let the create_or_update_room_product handle categories
-            // Create individual room products for each room number
-            foreach ($room_type['room_numbers'] as $room_number) {
-                $room_data = array(
-                    'nr' => $room_number,
-                    'tip' => $room_type['tip'],
-                    'tiplung' => $room_type['tiplung'] ?? $room_type['tip'],
-                    'adultMax' => $room_type['adultMax'] ?? 2,
-                    'kidMax' => $room_type['kidMax'] ?? 0,
-                    'babyBed' => $room_type['babyBed']
-                );
-                
-                $options_for_room = array(
-                    'update_existing' => $update_existing,
-                    'create_categories' => $create_categories
-                );
-                
-                $result = $this->create_or_update_room_product($room_data, $options_for_room);
-                
-                switch ($result['status']) {
-                    case 'created':
-                        $created++;
-                        break;
-                    case 'updated':
-                        $updated++;
-                        break;
-                    case 'skipped':
-                        $skipped++;
-                        break;
-                    case 'error':
-                        $errors++;
-                        break;
-                }
-            }
-        }
-        
-        $total_rooms = $created + $updated + $skipped + $errors;
+        $total = $created + $updated + $skipped + $errors;
         $this->log("Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}");
-        
         return array(
             'created' => $created,
             'updated' => $updated,
             'skipped' => $skipped,
             'errors' => $errors,
-            'total' => $total_rooms,
+            'total' => $total,
             'message' => "Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}",
             'log' => $this->log_messages
         );
@@ -434,8 +380,8 @@ class HotelRoomsImporter {
      * Create or update a WooCommerce product for a hotel room
      */
     private function create_or_update_room_product($room_data, $options) {
-        // Check if product already exists by room number
-        $existing_product = $this->find_existing_room_product($room_data['nr']);
+        // Check if product already exists by room type
+        $existing_product = $this->find_existing_room_product($room_data['tip']);
         
         $product_id = null;
         $created = false;
@@ -446,24 +392,24 @@ class HotelRoomsImporter {
             return array('created' => false, 'updated' => false, 'product_id' => $existing_product->ID);
         }
         
-        // Prepare product data
+        // Prepare product data with unlimited stock
         $product_data = array(
-            'post_title' => sprintf('Room %s - %s', $room_data['nr'], $room_data['tiplung']),
+            'post_title' => sprintf('Camera %s',  $room_data['tiplung']),
             'post_content' => $this->generate_room_description($room_data),
             'post_status' => 'publish',
             'post_type' => 'product',
             'meta_input' => array(
                 '_visibility' => 'visible',
                 '_stock_status' => 'instock',
-                '_manage_stock' => 'yes',
-                '_stock' => 1, // Only one room available
+                '_manage_stock' => 'no', // Unlimited stock
+                // '_stock' removed for unlimited
                 '_virtual' => $room_data['virtual'] ? 'yes' : 'no',
                 '_sold_individually' => 'yes',
-                
                 // Hotel room specific metadata
                 '_hotel_room_number' => $room_data['nr'],
                 '_hotel_room_id' => $room_data['idcamerehotel'],
-                '_hotel_room_type' => $room_data['tiplung'],
+                '_hotel_room_type' => $room_data['tip'],
+                '_hotel_room_type_long' => $room_data['tiplung'],
                 '_hotel_room_floor' => $room_data['etajresel'],
                 '_hotel_adults_max' => $room_data['adultMax'],
                 '_hotel_kids_max' => $room_data['kidMax'],
@@ -516,11 +462,11 @@ class HotelRoomsImporter {
     /**
      * Find existing room product by room number
      */
-    private function find_existing_room_product($room_number) {
+    private function find_existing_room_product($room_type) {
         $posts = get_posts(array(
             'post_type' => 'product',
-            'meta_key' => '_hotel_room_number',
-            'meta_value' => $room_number,
+            'meta_key' => '_hotel_room_type',
+            'meta_value' => $room_type,
             'posts_per_page' => 1,
             'post_status' => 'any'
         ));
