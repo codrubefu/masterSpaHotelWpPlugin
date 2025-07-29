@@ -14,10 +14,13 @@ if (!defined('ABSPATH')) {
 class HotelRoomsImporter {
     
     private $api_url;
+    private $api_secret;
     private $log_messages = [];
     
-    public function __construct($api_url = 'http://localhost:8082/api/camerehotel') {
-        $this->api_url = $api_url;
+    public function __construct() {
+        // Get configuration from admin settings
+        $this->api_url = MasterHotelConfig::get_config('import_api_url', 'http://localhost:8082/api/camerehotel/grouped-by-type');
+        $this->api_secret = MasterHotelConfig::get_config('api_secret', 'your-very-secure-secret-key-here');
         
         // Hook into WordPress admin
         add_action('admin_menu', array($this, 'add_admin_menu'));
@@ -46,6 +49,7 @@ class HotelRoomsImporter {
         <div class="wrap">
             <h1>Hotel Rooms Import</h1>
             <p>Import hotel rooms from API endpoint to WooCommerce products.</p>
+            <p><strong>Note:</strong> Default API settings can be configured in <a href="<?php echo admin_url('options-general.php?page=masterhotel-config'); ?>">Settings → MasterHotel</a></p>
             
             <form id="hotel-rooms-import-form">
                 <table class="form-table">
@@ -54,11 +58,11 @@ class HotelRoomsImporter {
                         <td>
                             <input type="url" name="api_url" value="<?php echo esc_attr($this->api_url); ?>" class="regular-text" />
                             <p class="description">
-                                The API endpoint URL for hotel rooms data<br>
+                                The API endpoint URL for hotel rooms data (grouped by type endpoint)<br>
                                 <strong>Common URLs:</strong><br>
-                                • <code>http://localhost:8082/api/camerehotel</code> (Local development)<br>
-                                • <code>http://127.0.0.1:8082/api/camerehotel</code> (Alternative local)<br>
-                                • <code>http://your-domain.com/api/camerehotel</code> (Production)
+                                • <code>http://localhost:8082/api/camerehotel/grouped-by-type</code> (Local development)<br>
+                                • <code>http://127.0.0.1:8082/api/camerehotel/grouped-by-type</code> (Alternative local)<br>
+                                • <code>http://your-domain.com/api/camerehotel/grouped-by-type</code> (Production)
                             </p>
                         </td>
                     </tr>
@@ -109,13 +113,15 @@ class HotelRoomsImporter {
                 $btn.prop('disabled', true).text('Importing...');
                 $progress.show();
                 $results.hide();
+                $('#progress-text').text('Importing rooms from API...');
+                $('#progress-fill').css('width', '50%');
                 
                 var formData = $(this).serialize();
                 formData += '&action=import_hotel_rooms';
                 
                 $.post(ajaxurl, formData, function(response) {
                     if (response.success) {
-                        importRooms(response.data.total_pages, response.data.api_url, response.data.options);
+                        showResults(response.data);
                     } else {
                         showError(response.data);
                     }
@@ -124,37 +130,29 @@ class HotelRoomsImporter {
                 });
             });
             
-            function importRooms(totalPages, apiUrl, options, currentPage = 1) {
-                var progress = Math.round((currentPage / totalPages) * 100);
-                $('#progress-fill').css('width', progress + '%');
-                $('#progress-text').text('Processing page ' + currentPage + ' of ' + totalPages + '...');
-                
-                $.post(ajaxurl, {
-                    action: 'import_hotel_rooms',
-                    page: currentPage,
-                    api_url: apiUrl,
-                    options: options,
-                    hotel_rooms_nonce: $('[name="hotel_rooms_nonce"]').val()
-                }, function(response) {
-                    if (response.success) {
-                        if (currentPage < totalPages) {
-                            importRooms(totalPages, apiUrl, options, currentPage + 1);
-                        } else {
-                            showResults(response.data);
-                        }
-                    } else {
-                        showError(response.data);
-                    }
-                }).fail(function() {
-                    showError('Failed to import page ' + currentPage);
-                });
-            }
-            
             function showResults(data) {
                 $('#import-btn').prop('disabled', false).text('Import Rooms');
                 $('#import-progress').hide();
                 $('#import-results').show();
-                $('#results-content').html(data.message);
+                
+                var html = '<h3>Import Results</h3>';
+                html += '<p><strong>' + data.message + '</strong></p>';
+                html += '<ul>';
+                html += '<li>Created: ' + data.created + '</li>';
+                html += '<li>Updated: ' + data.updated + '</li>';
+                html += '<li>Skipped: ' + data.skipped + '</li>';
+                html += '<li>Errors: ' + data.errors + '</li>';
+                html += '<li>Total: ' + data.total + '</li>';
+                html += '</ul>';
+                
+                if (data.log && data.log.length > 0) {
+                    html += '<h4>Import Log:</h4>';
+                    html += '<div style="background: #f9f9f9; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto;">';
+                    html += data.log.join('<br>');
+                    html += '</div>';
+                }
+                
+                $('#results-content').html(html);
             }
             
             function showError(message) {
@@ -183,27 +181,18 @@ class HotelRoomsImporter {
         }
         
         try {
-            $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
             $api_url = isset($_POST['api_url']) ? sanitize_url($_POST['api_url']) : $this->api_url;
             $options = isset($_POST['options']) ? $_POST['options'] : $_POST;
             
-            if ($page === 1) {
-                // First request - get total pages
-                $response = $this->fetch_api_data($api_url, 1);
-                if (!$response) {
-                    wp_send_json_error('Failed to fetch data from API. Check the import log for details.');
-                }
-                
-                wp_send_json_success(array(
-                    'total_pages' => $response['last_page'],
-                    'api_url' => $api_url,
-                    'options' => $options
-                ));
-            } else {
-                // Import specific page
-                $result = $this->import_rooms_from_page($api_url, $page, $options);
-                wp_send_json_success($result);
+            // Fetch all room types data
+            $response = $this->fetch_api_data($api_url);
+            if (!$response) {
+                wp_send_json_error('Failed to fetch data from API. Check the import log for details.');
             }
+            
+            // Import all room types
+            $result = $this->import_grouped_rooms($response, $options);
+            wp_send_json_success($result);
             
         } catch (Exception $e) {
             wp_send_json_error('Import error: ' . $e->getMessage());
@@ -211,10 +200,132 @@ class HotelRoomsImporter {
     }
     
     /**
+     * Import grouped room data from the new API structure
+     */
+    private function import_grouped_rooms($room_types_data, $options) {
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        $errors = 0;
+        
+        $update_existing = isset($options['update_existing']) ? (bool) $options['update_existing'] : true;
+        $create_categories = isset($options['create_categories']) ? (bool) $options['create_categories'] : true;
+        
+        $this->log('Starting import of ' . count($room_types_data) . ' room types...');
+        foreach ($room_types_data as $room_type) {
+            // Validate required fields
+            if (!isset($room_type['tip']) || !isset($room_type['room_numbers']) || !is_array($room_type['room_numbers'])) {
+                $this->log('Skipping invalid room type data: ' . json_encode($room_type));
+                $errors++;
+                continue;
+            }
+
+            // Create a single product for the room type, with room_numbers as info
+            $room_data = array(
+                'nr' => implode(', ', $room_type['room_numbers']),
+                'tip' => $room_type['tip'],
+                'tiplung' => $room_type['tiplung'] ?? $room_type['tip'],
+                'adultMax' => $room_type['adultMax'] ?? 2,
+                'kidMax' => $room_type['kidMax'] ?? 0,
+                'babyBed' => $room_type['babyBed'],
+                // Optionally add more fields if needed
+            );
+
+            $options_for_room = array(
+                'update_existing' => $update_existing,
+                'create_categories' => $create_categories
+            );
+
+            $result = $this->create_or_update_room_product($room_data, $options_for_room);
+
+            switch ($result['status'] ?? ($result['created'] ? 'created' : ($result['updated'] ? 'updated' : 'skipped'))) {
+                case 'created':
+                    $created++;
+                    break;
+                case 'updated':
+                    $updated++;
+                    break;
+                case 'skipped':
+                    $skipped++;
+                    break;
+                case 'error':
+                    $errors++;
+                    break;
+            }
+        }
+        return array(
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'total' => $created + $updated + $skipped + $errors,
+            'message' => "Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}",
+            'log' => $this->log_messages
+        );
+        foreach ($room_types_data as $room_type) {
+            // Validate required fields
+            if (!isset($room_type['tip']) || !isset($room_type['room_numbers']) || !is_array($room_type['room_numbers'])) {
+                $this->log('Skipping invalid room type data: ' . json_encode($room_type));
+                $errors++;
+                continue;
+            }
+            
+            // Just pass the room type and let the create_or_update_room_product handle categories
+            // Create individual room products for each room number
+            foreach ($room_type['room_numbers'] as $room_number) {
+                $room_data = array(
+                    'nr' => $room_number,
+                    'tip' => $room_type['tip'],
+                    'tiplung' => $room_type['tiplung'] ?? $room_type['tip'],
+                    'adultMax' => $room_type['adultMax'] ?? 2,
+                    'kidMax' => $room_type['kidMax'] ?? 0,
+                    'babyBed' => $room_type['babyBed']
+                );
+                
+                $options_for_room = array(
+                    'update_existing' => $update_existing,
+                    'create_categories' => $create_categories
+                );
+                
+                $result = $this->create_or_update_room_product($room_data, $options_for_room);
+                
+                switch ($result['status']) {
+                    case 'created':
+                        $created++;
+                        break;
+                    case 'updated':
+                        $updated++;
+                        break;
+                    case 'skipped':
+                        $skipped++;
+                        break;
+                    case 'error':
+                        $errors++;
+                        break;
+                }
+            }
+        }
+        
+        $total_rooms = $created + $updated + $skipped + $errors;
+        $this->log("Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}");
+        
+        return array(
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'total' => $total_rooms,
+            'message' => "Import completed! Created: {$created}, Updated: {$updated}, Skipped: {$skipped}, Errors: {$errors}",
+            'log' => $this->log_messages
+        );
+    }
+    
+    /**
      * Fetch data from API endpoint
      */
     private function fetch_api_data($url, $page = 1) {
-        $full_url = add_query_arg('page', $page, $url);
+        // For the grouped-by-type endpoint, we don't need pagination
+        $full_url = $url;
         
         $this->log('Attempting to connect to: ' . $full_url);
         
@@ -224,10 +335,10 @@ class HotelRoomsImporter {
             'headers' => array(
                 'Accept' => 'application/json',
                 'Content-Type' => 'application/json',
-                'X-API-Secret' => 'your-very-secure-secret-key-here'
+                'X-API-Secret' => $this->api_secret
             )
         ));
-     
+   
         if (is_wp_error($response)) {
             $error_message = $response->get_error_message();
             $error_code = $response->get_error_code();
@@ -284,7 +395,7 @@ class HotelRoomsImporter {
         $imported = 0;
         $updated = 0;
         $errors = 0;
-        
+ 
         foreach ($data['data'] as $room_data) {
             try {
                 $result = $this->create_or_update_room_product($room_data, $options);

@@ -16,12 +16,13 @@ class HotelRoomSearcher {
     private $api_url;
     private $api_secret;
     
-    public function __construct($api_url = 'http://laravel-app/api/rooms/search-combinations', $api_secret = 'your-very-secure-secret-key-here') {
-        $this->api_url = $api_url;
-        $this->api_secret = $api_secret;
+    public function __construct() {
+        // Get configuration from admin settings
+        $this->api_url = MasterHotelConfig::get_config('search_api_url', 'http://laravel-app/api/rooms/search-combinations');
+        $this->api_secret = MasterHotelConfig::get_config('api_secret', 'your-very-secure-secret-key-here');
         
         // Debug: Log that class is being instantiated
-        error_log('HotelRoomSearcher class instantiated');
+        error_log('HotelRoomSearcher class instantiated with API URL: ' . $this->api_url);
         
         // Hook into WordPress
         add_action('wp_ajax_search_hotel_rooms', array($this, 'ajax_search_rooms'));
@@ -71,8 +72,11 @@ class HotelRoomSearcher {
                     <div class="search-field">
                         <label for="adults">Adults:</label>
                         <select name="adults" id="adults" required>
-                            <?php for ($i = 1; $i <= 8; $i++): ?>
-                                <option value="<?php echo $i; ?>" <?php selected($i, 2); ?>><?php echo $i; ?></option>
+                            <?php 
+                            $default_adults = MasterHotelConfig::get_config('default_adults', 2);
+                            $max_adults = MasterHotelConfig::get_config('max_adults', 8);
+                            for ($i = 1; $i <= $max_adults; $i++): ?>
+                                <option value="<?php echo $i; ?>" <?php selected($i, $default_adults); ?>><?php echo $i; ?></option>
                             <?php endfor; ?>
                         </select>
                     </div>
@@ -80,8 +84,11 @@ class HotelRoomSearcher {
                     <div class="search-field">
                         <label for="kids">Children:</label>
                         <select name="kids" id="kids">
-                            <?php for ($i = 0; $i <= 4; $i++): ?>
-                                <option value="<?php echo $i; ?>" <?php selected($i, 0); ?>><?php echo $i; ?></option>
+                            <?php 
+                            $default_children = MasterHotelConfig::get_config('default_children', 0);
+                            $max_children = MasterHotelConfig::get_config('max_children', 4);
+                            for ($i = 0; $i <= $max_children; $i++): ?>
+                                <option value="<?php echo $i; ?>" <?php selected($i, $default_children); ?>><?php echo $i; ?></option>
                             <?php endfor; ?>
                         </select>
                     </div>
@@ -89,7 +96,9 @@ class HotelRoomSearcher {
                     <div class="search-field">
                         <label for="number_of_rooms">Number of Rooms:</label>
                         <select name="number_of_rooms" id="number_of_rooms" required>
-                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                            <?php 
+                            $max_rooms = MasterHotelConfig::get_config('max_rooms', 5);
+                            for ($i = 1; $i <= $max_rooms; $i++): ?>
                                 <option value="<?php echo $i; ?>" <?php selected($i, 1); ?>><?php echo $i; ?></option>
                             <?php endfor; ?>
                         </select>

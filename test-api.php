@@ -19,16 +19,25 @@ if (!defined('ABSPATH')) {
     }
 }
 
-function test_hotel_rooms_api($api_url = 'http://localhost:8082/api/camerehotel') {
+function test_hotel_rooms_api($api_url = null) {
+    // Use configuration if no URL provided
+    if (!$api_url) {
+        $api_url = MasterHotelConfig::get_config('import_api_url', 'http://localhost:8082/api/camerehotel');
+    }
+    
     echo "<h2>Testing Hotel Rooms API</h2>\n";
     echo "<p><strong>API URL:</strong> {$api_url}</p>\n";
+    
+    // Get API secret from configuration
+    $api_secret = MasterHotelConfig::get_config('api_secret', 'your-very-secure-secret-key-here');
     
     // Test first page
     $response = wp_remote_get($api_url . '?page=1', array(
         'timeout' => 10,
         'headers' => array(
             'Accept' => 'application/json',
-            'Content-Type' => 'application/json'
+            'Content-Type' => 'application/json',
+            'X-API-Secret' => $api_secret
         )
     ));
     
@@ -118,7 +127,9 @@ function test_hotel_rooms_api($api_url = 'http://localhost:8082/api/camerehotel'
 
 // If called directly, run the test
 if (php_sapi_name() === 'cli' || (isset($_GET['test_api']) && current_user_can('manage_options'))) {
-    $api_url = isset($_GET['api_url']) ? sanitize_url($_GET['api_url']) : 'http://localhost:8082/api/camerehotel';
+    // Use configuration default if no URL specified
+    $default_url = MasterHotelConfig::get_config('import_api_url', 'http://localhost:8082/api/camerehotel');
+    $api_url = isset($_GET['api_url']) ? sanitize_url($_GET['api_url']) : $default_url;
     test_hotel_rooms_api($api_url);
 }
 
@@ -131,10 +142,12 @@ add_action('admin_menu', function() {
         'manage_options',
         'test-hotel-api',
         function() {
-            $api_url = isset($_GET['api_url']) ? sanitize_url($_GET['api_url']) : 'http://localhost:8082/api/camerehotel';
+            $default_url = MasterHotelConfig::get_config('import_api_url', 'http://localhost:8082/api/camerehotel');
+            $api_url = isset($_GET['api_url']) ? sanitize_url($_GET['api_url']) : $default_url;
             ?>
             <div class="wrap">
                 <h1>Test Hotel Rooms API</h1>
+                <p>Test the API connection configured in <a href="<?php echo admin_url('options-general.php?page=masterhotel-config'); ?>">Settings → MasterHotel</a></p>
                 <form method="get">
                     <input type="hidden" name="page" value="test-hotel-api">
                     <table class="form-table">
@@ -143,6 +156,7 @@ add_action('admin_menu', function() {
                             <td>
                                 <input type="url" name="api_url" value="<?php echo esc_attr($api_url); ?>" class="regular-text" />
                                 <input type="submit" name="test_api" value="Test API" class="button button-primary" />
+                                <p class="description">Leave empty to use the configured default URL</p>
                             </td>
                         </tr>
                     </table>
