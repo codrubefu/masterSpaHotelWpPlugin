@@ -1,0 +1,172 @@
+/* CSS for Hotel Room Search Plugin */
+#hotel-availability-search {
+    max-width: 800px;
+    margin: 20px 0;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: #f9f9f9;
+}
+
+.search-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.search-field {
+    flex: 1;
+    min-width: 150px;
+}
+
+.search-field label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.search-field input,
+.search-field select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+.search-actions {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.search-btn {
+    background: #0073aa;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.search-btn:hover {
+    background: #005a87;
+}
+
+.room-combination {
+    margin: 20px 0;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: white;
+}
+
+.room-type-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #0073aa;
+}
+
+.combo-option {
+    margin: 10px 0;
+    padding: 10px;
+    border-left: 3px solid #0073aa;
+    background: #f0f8ff;
+}
+
+.room-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.room-info {
+    flex: 1;
+}
+
+.room-actions {
+    flex-shrink: 0;
+}
+
+.view-product-btn {
+    background: #28a745;
+    color: white;
+    padding: 8px 16px;
+    text-decoration: none;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+.view-product-btn:hover {
+    background: #218838;
+    color: white;
+}
+
+.no-results {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px;
+    border: 1px solid #f5c6cb;
+    border-radius: 3px;
+    margin: 10px 0;
+}
+
+.option-count {
+    font-size: 14px;
+    font-weight: normal;
+    color: #666;
+    font-style: italic;
+}
+
+.more-options {
+    text-align: center;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+
+.show-more-btn {
+    background: #f8f9fa;
+    color: #0073aa;
+    border: 1px solid #0073aa;
+    padding: 8px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.show-more-btn:hover {
+    background: #0073aa;
+    color: white;
+}
+
+.single-combo-option {
+    margin: 15px 0;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.option-separator {
+    border: none;
+    height: 1px;
+    background: #ddd;
+    margin: 15px 0;
+}
+
+.room-price {
+    color: #28a745;
+    font-weight: bold;
+    font-size: 16px;
+}

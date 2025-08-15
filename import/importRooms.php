@@ -220,7 +220,6 @@ class HotelRoomsImporter {
                 continue;
             }
 
-            // Create a single product for the room type, with room_numbers as info
             $room_data = array(
                 'nr' => implode(', ', $room_type['room_numbers']),
                 'tip' => $room_type['tip'],
@@ -228,7 +227,8 @@ class HotelRoomsImporter {
                 'adultMax' => $room_type['adultMax'] ?? 2,
                 'kidMax' => $room_type['kidMax'] ?? 0,
                 'babyBed' => $room_type['babyBed'],
-                // Optionally add more fields if needed
+                'idhotel' => $room_type['idhotel'] ?? '',
+                'pret' => $room_type['pret'],
             );
 
             $options_for_room = array(
@@ -382,17 +382,19 @@ class HotelRoomsImporter {
     private function create_or_update_room_product($room_data, $options) {
         // Check if product already exists by room type
         $existing_product = $this->find_existing_room_product($room_data['tip']);
-        
+
         $product_id = null;
         $created = false;
         $updated = false;
-        
+
         if ($existing_product && !isset($options['update_existing'])) {
             // Product exists and update is not enabled
             return array('created' => false, 'updated' => false, 'product_id' => $existing_product->ID);
         }
-        
-        // Prepare product data with unlimited stock
+
+        $is_variable = isset($room_data['pret']) && is_array($room_data['pret']) && count($room_data['pret']) > 1;
+
+        // Prepare product data
         $product_data = array(
             'post_title' => sprintf('Camera %s',  $room_data['tiplung']),
             'post_content' => $this->generate_room_description($room_data),
@@ -401,49 +403,107 @@ class HotelRoomsImporter {
             'meta_input' => array(
                 '_visibility' => 'visible',
                 '_stock_status' => 'instock',
-                '_manage_stock' => 'no', // Unlimited stock
-                // '_stock' removed for unlimited
+                '_manage_stock' => 'no',
                 '_virtual' => $room_data['virtual'] ? 'yes' : 'no',
-                '_sold_individually' => 'yes',
-                // Hotel room specific metadata
+                '_sold_individually' => 'no',
                 '_hotel_room_number' => $room_data['nr'],
-                '_hotel_room_id' => $room_data['idcamerehotel'],
                 '_hotel_room_type' => $room_data['tip'],
                 '_hotel_room_type_long' => $room_data['tiplung'],
-                '_hotel_room_floor' => $room_data['etajresel'],
                 '_hotel_adults_max' => $room_data['adultMax'],
                 '_hotel_kids_max' => $room_data['kidMax'],
                 '_hotel_baby_bed' => $room_data['babyBed'],
-                '_hotel_bed_info' => $room_data['bed'],
-                '_hotel_virtual' => $room_data['virtual'] ? 'yes' : 'no',
                 '_hotel_id' => $room_data['idhotel'],
-                '_hotel_label_id' => $room_data['idlabel'],
             )
         );
-        
+
+        if ($is_variable) {
+            $product_data['meta_input']['_product_version'] = 'variable';
+        } else {
+            // Set price for simple product
+            $first_pret = is_array($room_data['pret']) ? reset($room_data['pret']) : null;
+            $price = $first_pret && isset($first_pret['pret']) ? $first_pret['pret'] : 0;
+            $product_data['meta_input']['_price'] = $price;
+            $product_data['meta_input']['_regular_price'] = $price;
+        }
+
         if ($existing_product) {
-            // Update existing product
             $product_data['ID'] = $existing_product->ID;
             $product_id = wp_update_post($product_data);
             $updated = true;
         } else {
-            // Create new product
             $product_id = wp_insert_post($product_data);
             $created = true;
         }
-        
+
         if (is_wp_error($product_id)) {
             throw new Exception('Failed to create/update product: ' . $product_id->get_error_message());
         }
-        
+
         // Set product category based on room type
         if (isset($options['create_categories'])) {
             $this->set_room_category($product_id, $room_data['tiplung']);
         }
-        
+
         // Set product attributes
         $this->set_room_attributes($product_id, $room_data);
-        
+
+        // Handle variable product and variations
+        if ($is_variable) {
+            // Set product type to variable
+            wp_set_object_terms($product_id, 'variable', 'product_type');
+
+            // Add attribute for variation (e.g. Tariff)
+            $variation_names = array();
+            foreach ($room_data['pret'] as $pret) {
+                $variation_names[] = !empty($pret['art']) ? $pret['art'] : 'Variante';
+            }
+            $attribute = array(
+                'name' => 'Tariff',
+                'value' => implode(' | ', $variation_names),
+                'position' => 5,
+                'is_visible' => 1,
+                'is_variation' => 1,
+                'is_taxonomy' => 0
+            );
+            $attributes = get_post_meta($product_id, '_product_attributes', true);
+            if (!is_array($attributes)) $attributes = array();
+            $attributes['tariff'] = $attribute;
+            update_post_meta($product_id, '_product_attributes', $attributes);
+
+            // Remove existing variations
+            $existing_variations = get_posts(array(
+                'post_parent' => $product_id,
+                'post_type' => 'product_variation',
+                'numberposts' => -1,
+                'post_status' => 'any'
+            ));
+            foreach ($existing_variations as $variation) {
+                wp_delete_post($variation->ID, true);
+            }
+
+            // Add new variations
+            foreach ($room_data['pret'] as $pret) {
+                $variation_title = isset($pret['art']) && trim($pret['art']) !== '' ? trim($pret['art']) : 'Variante';
+                $variation_post = array(
+                    'post_title'  => $variation_title,
+                    'post_name'   => 'product-' . $product_id . '-variation-' . $pret['idpret'],
+                    'post_status' => 'publish',
+                    'post_parent' => $product_id,
+                    'post_type'   => 'product_variation',
+                    'meta_input'  => array(
+                        'attribute_tariff' => $variation_title,
+                        '_price' => $pret['pret'],
+                        '_regular_price' => $pret['pret'],
+                        '_stock_status' => 'instock',
+                    )
+                );
+                wp_insert_post($variation_post);
+            }
+        } else {
+            // Set product type to simple
+            wp_set_object_terms($product_id, 'simple', 'product_type');
+        }
+
         $this->log(sprintf(
             '%s room %s (ID: %d) - %s',
             $created ? 'Created' : 'Updated',
@@ -451,7 +511,7 @@ class HotelRoomsImporter {
             $product_id,
             $room_data['tiplung']
         ));
-        
+
         return array(
             'created' => $created,
             'updated' => $updated,
