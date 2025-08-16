@@ -19,13 +19,27 @@ class MasterHotelCurlHelper {
                 require_once $log_path;
             }
         }
-        $log_entry = "POST $url\nHeaders: " . json_encode($headers) . "\nData: " . json_encode($data);
-
-        $ch = curl_init($url);
+        // Add X-API-Secret header if available from config
+        $api_secret = '';
+        if (!class_exists('MasterHotelConfig')) {
+            $config_path = dirname(__FILE__,2) . '/config.php';
+            if (file_exists($config_path)) {
+                require_once $config_path;
+            }
+        }
+        if (class_exists('MasterHotelConfig')) {
+            $api_secret = MasterHotelConfig::get_config('api_secret', '');
+        }
         $default_headers = array('Content-Type: application/json');
+        if (!empty($api_secret)) {
+            $default_headers[] = 'X-API-Secret: ' . $api_secret;
+        }
         if (!empty($headers)) {
             $default_headers = array_merge($default_headers, $headers);
         }
+        $log_entry = "POST $url\nHeaders: " . json_encode($default_headers) . "\nData: " . json_encode($data);
+
+        $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $default_headers);

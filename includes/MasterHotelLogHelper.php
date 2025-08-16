@@ -13,8 +13,25 @@ class MasterHotelLogHelper {
     public static function write($message) {
         $log_path = self::get_log_path();
         $date = date('Y-m-d H:i:s');
-        $entry = "[$date] $message\n";
+        // Try to pretty-print JSON blocks in the message
+        $message = self::pretty_print_json_in_message($message);
+        $entry = "\n==================== [$date] ====================\n$message\n================================================\n";
         file_put_contents($log_path, $entry, FILE_APPEND);
+    }
+
+    /**
+     * Pretty print JSON found in the message (for log readability)
+     */
+    private static function pretty_print_json_in_message($message) {
+        // Find all JSON blocks and pretty print them
+        return preg_replace_callback('/({.*?})/s', function($matches) {
+            $json = $matches[1];
+            $decoded = json_decode($json, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return json_encode($decoded, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            }
+            return $json;
+        }, $message);
     }
 
     /**
