@@ -34,21 +34,32 @@ jQuery(document).ready(function ($) {
         $('.search-btn').prop('disabled', true).text('Searching...');
 
     $.post(window.hotelRoomSearchVars.ajax_url, formData, function (response) {
-            $('#search-loading').hide();
-            $('.search-btn').prop('disabled', false).text('Search Available Rooms');
-            if (response.success) {
-                displayResults(response.data);
-            } else {
-                $('#search-results').html('<div class="error-message">' + response.data + '</div>');
+        $('#search-loading').hide();
+        $('.search-btn').prop('disabled', false).text('Search Available Rooms');
+        // Fix: parse response if it's a string
+        var resp = response;
+        if (typeof response === 'string') {
+            try {
+                resp = JSON.parse(response);
+            } catch (e) {
+                resp = {};
             }
-        }).fail(function () {
-            $('#search-loading').hide();
-            $('.search-btn').prop('disabled', false).text('Search Available Rooms');
-            $('#search-results').html('<div class="error-message">Search failed. Please try again.</div>');
-        });
+        }
+        console.log('Search response:', resp.success);
+        if (resp.success) {
+            displayResults(resp.data);
+        } else {
+            $('#search-results').html('<div class="error-message">' + (resp.data || 'No data') + '</div>');
+        }
+    }).fail(function () {
+        $('#search-loading').hide();
+        $('.search-btn').prop('disabled', false).text('Search Available Rooms');
+        $('#search-results').html('<div class="error-message">Search failed. Please try again.</div>');
+    });
     });
 
     function displayResults(data) {
+        console.log('Search results:', data.combinations);
         if (!data.combinations || Object.keys(data.combinations).length === 0) {
             $('#search-results').html('<div class="no-results">No rooms available for the selected dates and criteria.</div>');
             return;
@@ -229,19 +240,45 @@ jQuery(document).ready(function ($) {
                 quantity: 1
             });
         });
+        // Get search params from the form
+        var $form = $('#hotel-availability-form');
+        var searchParams = {
+            adults: parseInt($form.find('#adults').val()),
+            kids: parseInt($form.find('#kids').val()),
+            number_of_rooms: $form.find('#number_of_rooms').val(),
+            start_date: $form.find('#start_date').val(),
+            end_date: $form.find('#end_date').val()
+        };
         $.ajax({
             url: window.hotelRoomSearchVars.ajax_url,
             method: 'POST',
-            data: {
+            data: Object.assign({
                 action: 'masterhotel_add_multiple_to_cart',
                 items: JSON.stringify(items),
                 nonce: window.hotelRoomSearchVars.nonce
-            },
+            }, searchParams),
             success: function(res) {
+                // Accept both {success: true, data: {...}} and {added:..., cart_url:...}
+                var isSuccess = false;
+                var cartUrl = '';
+                if (typeof res === 'string') {
+                    try {
+                        res = JSON.parse(res);
+                    } catch (e) {
+                        res = {};
+                    }
+                }
                 if (res.success) {
+                    isSuccess = true;
+                    cartUrl = res.data && res.data.cart_url ? res.data.cart_url : '';
+                } else if (typeof res.added !== 'undefined' && res.added > 0) {
+                    isSuccess = true;
+                    cartUrl = res.cart_url || '';
+                }
+                if (isSuccess) {
                     btn.text('Added!').prop('disabled', false);
-                    if (res.data && res.data.cart_url) {
-                        window.location.href = res.data.cart_url;
+                    if (cartUrl) {
+                        window.location.href = cartUrl;
                     }
                 } else {
                     btn.text('Error adding to cart').prop('disabled', false);

@@ -11,55 +11,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function dump($data) {
-    echo '<pre>' . print_r($data, true) . '</pre>';
-}
-
-function dd($data) {
-    dump($data);
-    die();
-}
-
-/**
- * Add multiple products (and variations) to WooCommerce cart via AJAX.
- * Accepts POST param 'items' as JSON array: [{product_id, variation_id, quantity}]
- */
-function masterhotel_add_multiple_to_cart() {
-    if (!class_exists('WC_Cart')) {
-        wp_send_json_error('WooCommerce not loaded');
-    }
-    $items = isset($_POST['items']) ? json_decode(stripslashes($_POST['items']), true) : array();
-    if (!is_array($items) || empty($items)) {
-        wp_send_json_error('No items provided');
-    }
-    // Empty the cart before adding new items
-    if (WC()->cart) {
-        WC()->cart->empty_cart();
-    }
-    $added = 0;
-    foreach ($items as $item) {
-        $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
-        $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        $quantity = isset($item['quantity']) ? intval($item['quantity']) : 1;
-        if ($product_id) {
-            if ($variation_id) {
-                WC()->cart->add_to_cart($product_id, $quantity, $variation_id);
-            } else {
-                WC()->cart->add_to_cart($product_id, $quantity);
-            }
-            $added++;
-        }
-    }
-    wp_send_json_success(array(
-        'added' => $added,
-        'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : ''
-    ));
-}
-
-add_action('wp_ajax_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
-add_action('wp_ajax_nopriv_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
-
-
 class HotelRoomSearcher {
     
     private $api_url;
@@ -83,6 +34,7 @@ class HotelRoomSearcher {
         
         // Debug: Log that shortcode is registered
         error_log('Hotel search shortcode registered');
+    
     }
 
     /**
@@ -203,6 +155,11 @@ class HotelRoomSearcher {
                 'start_date' => sanitize_text_field($_POST['start_date']),
                 'end_date' => sanitize_text_field($_POST['end_date'])
             );
+                // Save search params in session
+                if (!session_id()) {
+                    session_start();
+                }
+                $_SESSION['hotel_search_params'] = $search_params;
             
             // Validate dates
             if (strtotime($search_params['start_date']) >= strtotime($search_params['end_date'])) {
@@ -233,6 +190,7 @@ class HotelRoomSearcher {
         }
     }
     
+
     /**
      * Search for room combinations via API
      */

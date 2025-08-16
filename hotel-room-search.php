@@ -23,6 +23,9 @@ require_once MASTER_HOTEL_PLUGIN_DIR . 'config.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'import/importRooms.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'room-search.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'activate-importer.php';
+require_once MASTER_HOTEL_PLUGIN_DIR . 'hotel-room-search.php';
+require_once MASTER_HOTEL_PLUGIN_DIR . 'hotel-order.php';
+require_once MASTER_HOTEL_PLUGIN_DIR . 'finaliseOrder/finalise.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'test-api.php';
 
 // Debug: Log that all files are included

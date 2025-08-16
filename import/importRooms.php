@@ -57,13 +57,6 @@ class HotelRoomsImporter {
                         <th scope="row">API URL</th>
                         <td>
                             <input type="url" name="api_url" value="<?php echo esc_attr($this->api_url); ?>" class="regular-text" />
-                            <p class="description">
-                                The API endpoint URL for hotel rooms data (grouped by type endpoint)<br>
-                                <strong>Common URLs:</strong><br>
-                                • <code>http://localhost:8082/api/camerehotel/grouped-by-type</code> (Local development)<br>
-                                • <code>http://127.0.0.1:8082/api/camerehotel/grouped-by-type</code> (Alternative local)<br>
-                                • <code>http://your-domain.com/api/camerehotel/grouped-by-type</code> (Production)
-                            </p>
                         </td>
                     </tr>
                     <tr>

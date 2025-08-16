@@ -11,12 +11,43 @@ if (!defined('ABSPATH')) {
 }
 
 class MasterHotelConfig {
+    public function add_log_admin_menu() {
+        add_submenu_page(
+            'options-general.php',
+            'MasterHotel Log',
+            'MasterHotel Log',
+            'manage_options',
+            'masterhotel-log',
+            array($this, 'log_admin_page')
+        );
+    }
+
+    public function log_admin_page() {
+        if (!class_exists('MasterHotelLogHelper')) {
+            $log_path = dirname(__FILE__) . '/includes/MasterHotelLogHelper.php';
+            if (file_exists($log_path)) {
+                require_once $log_path;
+            }
+        }
+        if (isset($_POST['masterhotel_clear_log']) && check_admin_referer('masterhotel_clear_log')) {
+            MasterHotelLogHelper::clear_log();
+            echo '<div class="updated"><p>Log cleared.</p></div>';
+        }
+        $log = class_exists('MasterHotelLogHelper') ? MasterHotelLogHelper::get_log() : '';
+        echo '<div class="wrap"><h1>MasterHotel Log</h1>';
+        echo '<form method="post">';
+        wp_nonce_field('masterhotel_clear_log');
+        echo '<textarea readonly rows="25" style="width:100%;font-family:monospace;">' . esc_textarea($log) . '</textarea><br><br>';
+        echo '<input type="submit" name="masterhotel_clear_log" class="button button-secondary" value="Clear Log" onclick="return confirm(\'Are you sure you want to clear the log?\');">';
+        echo '</form></div>';
+    }
     
     private $option_group = 'masterhotel_settings';
     private $option_name = 'masterhotel_options';
     
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_menu', array($this, 'add_log_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
     }
     
@@ -65,6 +96,16 @@ class MasterHotelConfig {
             'api_settings'
         );
         
+
+         // Order Completed Webhook URL
+        add_settings_field(
+            'order_completed_webhook_url',
+            'Order Completed Webhook URL',
+            array($this, 'order_webhook_url_callback'),
+            'masterhotel-config',
+            'api_settings'
+        );
+
         // API Secret Key
         add_settings_field(
             'api_secret',
@@ -161,7 +202,16 @@ class MasterHotelConfig {
             'masterhotel-config',
             'search_settings'
         );
+
+
     }
+
+    public function order_webhook_url_callback() {
+        $value = $this->get_option('order_completed_webhook_url');
+        echo '<input type="url" name="' . $this->option_name . '[order_completed_webhook_url]" value="' . esc_attr($value) . '" class="regular-text" />';
+        echo '<p class="description">URL for sending order data when status changes to completed.</p>';
+    }
+    
     
     /**
      * Sanitize settings input
@@ -172,47 +222,51 @@ class MasterHotelConfig {
         if (isset($input['import_api_url'])) {
             $sanitized['import_api_url'] = esc_url_raw($input['import_api_url']);
         }
-        
+
         if (isset($input['search_api_url'])) {
             $sanitized['search_api_url'] = esc_url_raw($input['search_api_url']);
         }
-        
+
+        if (isset($input['order_completed_webhook_url'])) {
+            $sanitized['order_completed_webhook_url'] = esc_url_raw($input['order_completed_webhook_url']);
+        }
+
         if (isset($input['api_secret'])) {
             $sanitized['api_secret'] = sanitize_text_field($input['api_secret']);
         }
-        
+
         if (isset($input['enable_debug'])) {
             $sanitized['enable_debug'] = (bool) $input['enable_debug'];
         }
-        
+
         if (isset($input['auto_create_categories'])) {
             $sanitized['auto_create_categories'] = (bool) $input['auto_create_categories'];
         }
-        
+
         if (isset($input['update_existing'])) {
             $sanitized['update_existing'] = (bool) $input['update_existing'];
         }
-        
+
         if (isset($input['default_adults'])) {
             $sanitized['default_adults'] = intval($input['default_adults']);
         }
-        
+
         if (isset($input['default_children'])) {
             $sanitized['default_children'] = intval($input['default_children']);
         }
-        
+
         if (isset($input['max_adults'])) {
             $sanitized['max_adults'] = intval($input['max_adults']);
         }
-        
+
         if (isset($input['max_children'])) {
             $sanitized['max_children'] = intval($input['max_children']);
         }
-        
+
         if (isset($input['max_rooms'])) {
             $sanitized['max_rooms'] = intval($input['max_rooms']);
         }
-        
+
         return $sanitized;
     }
     
@@ -235,7 +289,7 @@ class MasterHotelConfig {
      * Get specific option value with default (static method for use in other classes)
      */
     public static function get_config($key, $default = '') {
-        $options = self::get_all_options();
+        $options = get_option('masterhotel_options', array());
         return isset($options[$key]) ? $options[$key] : $default;
     }
     
@@ -307,7 +361,7 @@ class MasterHotelConfig {
     }
     
     public function search_api_url_callback() {
-        $value = $this->get_option('search_api_url', 'http://laravel-app/api/rooms/search-combinations');
+        $value = $this->get_option('search_api_url');
         echo '<input type="url" name="' . $this->option_name . '[search_api_url]" value="' . esc_attr($value) . '" class="regular-text" />';
         echo '<p class="description">URL for searching room combinations</p>';
     }
@@ -374,6 +428,6 @@ class MasterHotelConfig {
         echo '<p class="description">Maximum number of rooms selectable in the search form</p>';
     }
 }
-
 // Initialize the configuration
 new MasterHotelConfig();
+?>
