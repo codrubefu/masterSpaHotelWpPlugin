@@ -252,9 +252,7 @@ class HotelRoomSearcher {
             if (!isset($type_data['combo']) || !is_array($type_data['combo'])) {
                 continue;
             }
-            // Add price array for this room_type
-            $type_data['price'] = array();
-
+     
             foreach ($type_data['combo'] as &$combo) {
                 if (!is_array($combo)) {
                     continue;
@@ -317,7 +315,7 @@ class HotelRoomSearcher {
         }
         // Calculate priceCombo for all combinations
         $this->calculate_price_combo($combinations);
-        return $this->sortCombinationsByPrice($combinations);
+        return $this->sortCombinationsByPriceCombo($combinations);
     }
     /**
      * Calculate priceCombo for each room_type in combinations
@@ -335,32 +333,25 @@ class HotelRoomSearcher {
                         $combo_sum += floatval($room['cheapest_price']);
                     }
                 }
-                $type_data['priceCombo'] = $combo_sum;
+                $type_data['priceCombo'] = (int)$combo_sum;
             }
         }
     }
 
     /**
-     * Sorts the 'combinations' array by 'priceCombo' in descending order.
+     * Sorts the combinations array by priceCombo ascending (cheapest first)
      *
-     * @param array $data The original data array.
-     * @return array The data array with the sorted 'combinations'.
+     * @param array $combinations The combinations array to sort
+     * @return array The sorted combinations array
      */
-    function sortCombinationsByPrice(array $data): array
+    function sortCombinationsByPriceCombo(array $combinations): array
     {
-        // Check if the 'combinations' key exists and is an array
-        if (isset($data['combinations']) && is_array($data['combinations'])) {
-            
-            // uasort sorts an array by values using a user-defined comparison
-            // function and maintains the original key association.
-            uasort($data['combinations'], function ($a, $b) {
-                // The spaceship operator (<=>) returns -1, 0, or 1.
-                // By comparing $b to $a, we sort in descending order.
-                return $b['priceCombo'] <=> $a['priceCombo'];
-            });
-        }
-
-        return $data;
+        uasort($combinations, function ($a, $b) {
+            $aPrice = is_array($a['priceCombo']) ? min($a['priceCombo']) : (is_numeric($a['priceCombo']) ? $a['priceCombo'] : PHP_FLOAT_MAX);
+            $bPrice = is_array($b['priceCombo']) ? min($b['priceCombo']) : (is_numeric($b['priceCombo']) ? $b['priceCombo'] : PHP_FLOAT_MAX);
+            return $aPrice <=> $bPrice;
+        });
+        return $combinations;
     }
 
 

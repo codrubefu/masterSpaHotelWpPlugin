@@ -104,7 +104,7 @@ jQuery(document).ready(function ($) {
                 // If room has variations, show dropdown
                 if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
                     html += '<br><label>Choose variation:</label><div class="room-variation-radio-group" data-room-index="' + roomIndex + '"><ul>';
-                    var firstNonHiddenChecked = false;
+                    var firstVisible = true;
                     $.each(room.variations, function(vi, variation) {
                         var attrs = Object.values(variation.attributes).join(', ');
                         var isSingle = false;
@@ -116,11 +116,14 @@ jQuery(document).ready(function ($) {
                         if (hideSingle && isSingle) {
                             return; // skip rendering this variation
                         }
-                        var checked = !firstNonHiddenChecked ? 'checked' : '';
-                        firstNonHiddenChecked = true;
+                        var checkedAttr = '';
+                        if (firstVisible) {
+                            checkedAttr = 'checked';
+                            firstVisible = false;
+                        }
                         var adultMax = isSingle ? 1 : room.adultMax;
                         var childMax = isSingle ? 0 : room.kidMax;
-                        html += '<li><label style="margin-right:10px;"><input type="radio" name="room-variation-' + roomIndex + '" class="room-variation-radio room-variation-select" value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '" data-adultMax="' + adultMax + '" data-childMax="' + childMax + '" ' + checked + '> ' + attrs + ' - $' + variation.price + (variation.in_stock ? '' : ' (Out of stock)') + '</label></li>';
+                        html += '<li><label style="margin-right:10px;"><input type="radio" name="room-variation-' + roomIndex + '" class="room-variation-radio room-variation-select" value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '" data-adultMax="' + adultMax + '" data-childMax="' + childMax + '" ' + checkedAttr + '> ' + attrs + ' - $' + variation.price + (variation.in_stock ? '' : ' (Out of stock)') + '</label></li>';
                     });
                     html += '</ul></div>';
                     // Show price for first variation by default
@@ -260,8 +263,11 @@ jQuery(document).ready(function ($) {
             totalKids += childMax;
         });
    
+        // Remove any previous error message
+        $comboOption.find('.combo-error-message').remove();
         if (totalAdults < maxAdults || totalKids < maxKids) {
-            alert('The total number of adults or children for the selected rooms exceeds your search selection. Please adjust your selection.');
+            var errorMsg = $('<div class="combo-error-message" style="color:red; margin-bottom:8px;">The total number of adults or children for the selected rooms exceeds your search selection. Please adjust your selection.</div>');
+            btn.closest('.room-actions').before(errorMsg);
             return;
         }
         btn.prop('disabled', true).text('Adding...');
