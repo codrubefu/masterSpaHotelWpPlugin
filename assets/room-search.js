@@ -67,7 +67,14 @@ jQuery(document).ready(function ($) {
 
         var html = '<h3>Available Room Combinations</h3>';
 
-        $.each(data.combinations, function (roomType, typeData) {
+    // Get adults and number_of_rooms from form for logic
+    var $form = $('#hotel-availability-form');
+    var totalAdults = parseInt($form.find('#adults').val()) || 0;
+    var totalKids = parseInt($form.find('#kids').val()) || 0;
+    var totalRooms = parseInt($form.find('#number_of_rooms').val()) || 1;
+    var hideSingle = (totalAdults > 0 && totalRooms > 0 && totalAdults % totalRooms === 0);
+    
+    $.each(data.combinations, function (roomType, typeData) {
             if (!typeData.combo || typeData.combo.length === 0) {
                 return; // Skip if no combinations
             }
@@ -96,12 +103,26 @@ jQuery(document).ready(function ($) {
                 html += 'Max Adults: ' + room.adultMax + ', Max Children: ' + room.kidMax;
                 // If room has variations, show dropdown
                 if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
-                    html += '<br><label>Choose variation: <select class="room-variation-select" data-room-index="' + roomIndex + '">';
+                    html += '<br><label>Choose variation:</label><div class="room-variation-radio-group" data-room-index="' + roomIndex + '"><ul>';
+                    var firstNonHiddenChecked = false;
                     $.each(room.variations, function(vi, variation) {
                         var attrs = Object.values(variation.attributes).join(', ');
-                        html += '<option value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '">' + attrs + ' - $' + variation.price + (variation.in_stock ? '' : ' (Out of stock)') + '</option>';
+                        var isSingle = false;
+                        // Check if "single" is in the attributes or title (case-insensitive)
+                        if (attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'))) {
+                            isSingle = true;
+                        }
+                        // Hide if hideSingle is true and this is a single variation
+                        if (hideSingle && isSingle) {
+                            return; // skip rendering this variation
+                        }
+                        var checked = !firstNonHiddenChecked ? 'checked' : '';
+                        firstNonHiddenChecked = true;
+                        var adultMax = isSingle ? 1 : room.adultMax;
+                        var childMax = isSingle ? 0 : room.kidMax;
+                        html += '<li><label style="margin-right:10px;"><input type="radio" name="room-variation-' + roomIndex + '" class="room-variation-radio room-variation-select" value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '" data-adultMax="' + adultMax + '" data-childMax="' + childMax + '" ' + checked + '> ' + attrs + ' - $' + variation.price + (variation.in_stock ? '' : ' (Out of stock)') + '</label></li>';
                     });
-                    html += '</select></label>';
+                    html += '</ul></div>';
                     // Show price for first variation by default
                     html += '<br><span class="room-price">Price: $' + room.variations[0].price + '</span>';
                 } else if (room.product_price) {
@@ -115,10 +136,10 @@ jQuery(document).ready(function ($) {
                 }
                 html += '</div>';
     // Handle variation dropdown change to update price
-    $('#search-results').on('change', '.room-variation-select', function() {
-        var $select = $(this);
-        var price = $select.find('option:selected').data('price');
-        var $roomDetails = $select.closest('.room-info');
+    $('#search-results').on('change', '.room-variation-radio', function() {
+        var $input = $(this);
+        var price = $input.data('price');
+        var $roomDetails = $input.closest('.room-info');
         $roomDetails.find('.room-price').text('Price: $' + price);
     });
                 if (room.product_id) {
@@ -223,12 +244,32 @@ jQuery(document).ready(function ($) {
         var $comboOption = btn.closest('.combo-option, .single-combo-option');
         var productIds = btn.data('product-ids').toString().split(',');
         if (!productIds.length) return;
+        // Get search params from the form
+        var $form = $('#hotel-availability-form');
+        var maxAdults = parseInt($form.find('#adults').val()) || 0;
+        var maxKids = parseInt($form.find('#kids').val()) || 0;
+        // Sum selected radios' adultMax and childMax
+        var totalAdults = 0;
+        var totalKids = 0;
+        $comboOption.find('.room-details').each(function(idx, el) {
+            var $roomDetails = $(el);
+            var $variationSelect = $roomDetails.find('.room-variation-radio:checked');
+            var adultMax = $variationSelect.length ? parseInt($variationSelect.attr('data-adultMax')) || 0 : 0;
+            var childMax = $variationSelect.length ? parseInt($variationSelect.attr('data-childMax')) || 0 : 0;
+            totalAdults += adultMax;
+            totalKids += childMax;
+        });
+   
+        if (totalAdults < maxAdults || totalKids < maxKids) {
+            alert('The total number of adults or children for the selected rooms exceeds your search selection. Please adjust your selection.');
+            return;
+        }
         btn.prop('disabled', true).text('Adding...');
         // Build items array for AJAX
         var items = [];
         $comboOption.find('.room-details').each(function(idx, el) {
             var $roomDetails = $(el);
-            var $variationSelect = $roomDetails.find('.room-variation-select');
+            var $variationSelect = $roomDetails.find('.room-variation-radio:checked');
             var productId = productIds[idx];
             var variationId = '';
             if ($variationSelect.length) {
@@ -240,11 +281,9 @@ jQuery(document).ready(function ($) {
                 quantity: 1
             });
         });
-        // Get search params from the form
-        var $form = $('#hotel-availability-form');
         var searchParams = {
-            adults: parseInt($form.find('#adults').val()),
-            kids: parseInt($form.find('#kids').val()),
+            adults: maxAdults,
+            kids: maxKids,
             number_of_rooms: $form.find('#number_of_rooms').val(),
             start_date: $form.find('#start_date').val(),
             end_date: $form.find('#end_date').val()
