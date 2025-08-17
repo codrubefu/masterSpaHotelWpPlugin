@@ -138,13 +138,13 @@ jQuery(document).ready(function ($) {
                     html += '</div>';
                 }
                 html += '</div>';
-    // Handle variation dropdown change to update price
-    $('#search-results').on('change', '.room-variation-radio', function() {
-        var $input = $(this);
-        var price = $input.data('price');
-        var $roomDetails = $input.closest('.room-info');
-        $roomDetails.find('.room-price').text('Price: $' + price);
-    });
+                // Handle variation dropdown change to update price
+                $('#search-results').on('change', '.room-variation-radio', function() {
+                    var $input = $(this);
+                    var price = $input.data('price');
+                    var $roomDetails = $input.closest('.room-info');
+                    $roomDetails.find('.room-price').text('Price: $' + price);
+                });
                 if (room.product_id) {
                     productIds.push(room.product_id);
                 }
