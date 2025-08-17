@@ -252,6 +252,8 @@ class HotelRoomSearcher {
             if (!isset($type_data['combo']) || !is_array($type_data['combo'])) {
                 continue;
             }
+            // Add price array for this room_type
+            $type_data['price'] = array();
 
             foreach ($type_data['combo'] as &$combo) {
                 if (!is_array($combo)) {
@@ -281,6 +283,7 @@ class HotelRoomSearcher {
                         // Get all variations for this product (if variable)
                         if ('product_variation' === get_post_type($product->ID) || get_post_type($product->ID) === 'product') {
                             $product_obj = wc_get_product($product->ID);
+                            $cheapest = null;
                             if ($product_obj && $product_obj->is_type('variable')) {
                                 $variations = $product_obj->get_available_variations();
                                 $room['variations'] = array();
@@ -295,15 +298,73 @@ class HotelRoomSearcher {
                                         'sku' => $variation['sku'],
                                         'image' => isset($variation['image']['src']) ? $variation['image']['src'] : '',
                                     );
+                                    if ($cheapest === null || $variation['display_price'] < $cheapest) {
+                                        $cheapest = $variation['display_price'];
+                                    }
                                 }
                             }
+                            if ($cheapest !== null) {
+                                $room['cheapest_price'] = $cheapest;
+                            } else {
+                                $room['cheapest_price'] = $room['product_price'] * 0.8; // fallback
+                            }
+                        } else {
+                            $room['cheapest_price'] = $room['product_price'] * 0.8; // fallback
                         }
                     }
                 }
             }
         }
-        return $combinations;
+        // Calculate priceCombo for all combinations
+        $this->calculate_price_combo($combinations);
+        return $this->sortCombinationsByPrice($combinations);
     }
+    /**
+     * Calculate priceCombo for each room_type in combinations
+     */
+    private function calculate_price_combo(&$combinations) {
+        foreach ($combinations as &$type_data) {
+            if (!isset($type_data['combo']) || !is_array($type_data['combo'])) {
+                continue;
+            }
+            $type_data['priceCombo'] = array();
+            foreach ($type_data['combo'] as $combo) {
+                $combo_sum = 0;
+                foreach ($combo as $room) {
+                    if (isset($room['cheapest_price'])) {
+                        $combo_sum += floatval($room['cheapest_price']);
+                    }
+                }
+                $type_data['priceCombo'] = $combo_sum;
+            }
+        }
+    }
+
+    /**
+     * Sorts the 'combinations' array by 'priceCombo' in descending order.
+     *
+     * @param array $data The original data array.
+     * @return array The data array with the sorted 'combinations'.
+     */
+    function sortCombinationsByPrice(array $data): array
+    {
+        // Check if the 'combinations' key exists and is an array
+        if (isset($data['combinations']) && is_array($data['combinations'])) {
+            
+            // uasort sorts an array by values using a user-defined comparison
+            // function and maintains the original key association.
+            uasort($data['combinations'], function ($a, $b) {
+                // The spaceship operator (<=>) returns -1, 0, or 1.
+                // By comparing $b to $a, we sort in descending order.
+                return $b['priceCombo'] <=> $a['priceCombo'];
+            });
+        }
+
+        return $data;
+    }
+
+
+    
     
     /**
      * Find WooCommerce product by room type
