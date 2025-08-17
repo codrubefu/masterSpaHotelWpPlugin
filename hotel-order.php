@@ -68,15 +68,28 @@ function masterhotel_add_multiple_to_cart() {
         'end_date' => isset($_POST['end_date']) ? sanitize_text_field($_POST['end_date']) : '',
     );
 
+    // Calculate nights (quantity) from start_date and end_date
+    $start_date = isset($_POST['start_date']) ? $_POST['start_date'] : '';
+    $end_date = isset($_POST['end_date']) ? $_POST['end_date'] : '';
+    $nights = 1;
+    if ($start_date && $end_date) {
+        $start = new DateTime($start_date);
+        $end = new DateTime($end_date);
+        $interval = $start->diff($end);
+        $nights = max(1, (int)$interval->format('%a'));
+    }
     foreach ($items as $item) {
         $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
         $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        $quantity = isset($item['quantity']) ? intval($item['quantity']) : 1;
+        $quantity = $nights;
         if ($product_id) {
+            // Add a unique key to force separate cart lines
+            $unique_key = uniqid('line_', true);
+            $custom_cart_item_data = array_merge(array('masterhotel_unique_key' => $unique_key), $booking_meta);
             if ($variation_id) {
-                WC()->cart->add_to_cart($product_id, $quantity, $variation_id, array(), $booking_meta);
+                WC()->cart->add_to_cart($product_id, $quantity, $variation_id, array(), $custom_cart_item_data);
             } else {
-                WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $booking_meta);
+                WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $custom_cart_item_data);
             }
             $added++;
         }
