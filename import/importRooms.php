@@ -168,10 +168,6 @@ class HotelRoomsImporter {
             wp_die('Security check failed');
         }
         
-        // Check permissions
-        if (!current_user_can('manage_options')) {
-            wp_die('Insufficient permissions');
-        }
         
         try {
             $api_url = isset($_POST['api_url']) ? sanitize_url($_POST['api_url']) : $this->api_url;
@@ -285,7 +281,7 @@ class HotelRoomsImporter {
             
             // Provide more specific error messages
             if (strpos($error_message, 'Failed to connect') !== false) {
-                $this->log('Connection failed - please check if the API server is running on port 8082');
+                $this->log('Connection failed - please check if the API server is running on port 8275');
             } elseif (strpos($error_message, 'cURL error 7') !== false) {
                 $this->log('cURL connection error - the API endpoint may not be accessible');
             }

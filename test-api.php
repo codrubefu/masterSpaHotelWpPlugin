@@ -126,7 +126,7 @@ function test_hotel_rooms_api($api_url = null) {
 }
 
 // If called directly, run the test
-if (php_sapi_name() === 'cli' || (isset($_GET['test_api']) && current_user_can('manage_options'))) {
+if (php_sapi_name() === 'cli' || (isset($_GET['test_api']) )) {
     // Use configuration default if no URL specified
     $default_url = MasterHotelConfig::get_config('import_api_url', 'http://localhost:8082/api/camerehotel');
     $api_url = isset($_GET['api_url']) ? sanitize_url($_GET['api_url']) : $default_url;

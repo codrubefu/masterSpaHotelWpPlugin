@@ -82,25 +82,15 @@ jQuery(document).ready(function ($) {
             var totalOptions = typeData.combo.length;
             var firstCombo = typeData.combo[0]; // Show only the first option
 
-            html += '<div class="room-combination">';
-            html += '<div class="room-type-title">' + roomType;
-
-            // Add option count
-            if (totalOptions > 1) {
-                html += ' <span class="option-count">(' + totalOptions + ' options available)</span>';
-            }
-
-            html += '</div>';
+    
 
             // Show only the first combination
             html += '<div class="combo-option">';
-            html += '<strong>Option 1' + (totalOptions > 1 ? ' of ' + totalOptions : '') + ':</strong><br>';
             var productIds = [];
             $.each(firstCombo, function (roomIndex, room) {
                 html += '<div class="room-details">';
                 html += '<div class="room-info">';
-                html += '<strong>Room ' + room.nr + '</strong> - ' + room.typeName + '<br>';
-                html += 'Max Adults: ' + room.adultMax + ', Max Children: ' + room.kidMax;
+                html += '<strong>Room ' +  room.typeName + '</strong>  <br>';
                 // If room has variations, show dropdown
                 if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
                     html += '<br><label>Choose variation:</label><div class="room-variation-radio-group" data-room-index="' + roomIndex + '"><ul>';

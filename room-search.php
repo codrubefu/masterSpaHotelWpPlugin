@@ -215,7 +215,6 @@ class HotelRoomSearcher {
         
         if (is_wp_error($response)) {
             $error_message = $response->get_error_message();
-            dd($error_message);
             error_log('Hotel search API error: ' . $error_message);
             return false;
         }
@@ -266,11 +265,17 @@ class HotelRoomSearcher {
 
                     // Find corresponding WooCommerce product
                     $product = $this->find_product_by_room_type($room['type']);
+                    $related_article_id = get_post_meta($product->ID, '_related_article_id', true);
+                    // Only query for related article if not already set
+                    $related_article = $this->find_related_article_id_by_room_type($related_article_id);
+                    if ($related_article) {
+                        $room['_related_article'] = $related_article;
+                    }
 
                     if ($product) {
                         $room['product_id'] = $product->ID;
                         $room['product_url'] = get_permalink($product->ID);
-                        $room['product_title'] = $product->post_title;
+                        $room['product_title'] =  $room['_related_article']->post_title;
                         $room['product_price'] = get_post_meta($product->ID, '_price', true);
 
                         // Get product image
@@ -317,6 +322,22 @@ class HotelRoomSearcher {
         // Calculate priceCombo for all combinations
         $this->calculate_price_combo($combinations);
         return $this->sortCombinationsByPriceCombo($combinations);
+    }
+
+    /**
+     * Find related article ID by product ID
+     *
+     * @param int $product_id
+     * @return int|null
+     */
+    private function find_related_article_id_by_room_type($product_id) {
+
+        // Directly get the post with ID = $product_id
+        $post = get_post($product_id);
+        if ($post && $post->post_status === 'publish' && $post->post_type === 'loftocean_room') {
+            return $post;
+        }
+        return null;
     }
     /**
      * Calculate priceCombo for each room_type in combinations
