@@ -215,6 +215,7 @@ class HotelRoomSearcher {
         
         if (is_wp_error($response)) {
             $error_message = $response->get_error_message();
+            dd($error_message);
             error_log('Hotel search API error: ' . $error_message);
             return false;
         }
