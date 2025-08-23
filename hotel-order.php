@@ -96,10 +96,20 @@ function masterhotel_add_multiple_to_cart() {
     }
     wp_send_json_success(array(
         'added' => $added,
-        'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : ''
+        'cart_url' => function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : ''
     ));
 }
 
 add_action('wp_ajax_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
 add_action('wp_ajax_nopriv_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
+
+function redirect_cart_to_checkout() {
+    if ( function_exists('is_cart') && is_cart() ) {
+        if ( function_exists('wc_get_checkout_url') ) {
+            wp_redirect( wc_get_checkout_url() );
+            exit;
+        }
+    }
+}
+add_action( 'template_redirect', 'redirect_cart_to_checkout' );
 

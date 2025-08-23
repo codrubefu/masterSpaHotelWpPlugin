@@ -28,7 +28,7 @@ require_once MASTER_HOTEL_PLUGIN_DIR . 'hotel-order.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'finaliseOrder/finalise.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'test-api.php';
 require_once MASTER_HOTEL_PLUGIN_DIR . 'related-article-for-product.php';
-
+require_once MASTER_HOTEL_PLUGIN_DIR . 'checkout/customFields.php';
 // Debug: Log that all files are included
 error_log('All MasterSpa Hotel plugin files included successfully');
 

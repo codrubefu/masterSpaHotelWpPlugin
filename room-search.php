@@ -43,6 +43,7 @@ class HotelRoomSearcher {
     public function enqueue_assets() {
         $plugin_url = plugin_dir_url(__FILE__);
         wp_enqueue_style('master-hotel-room-search', $plugin_url . 'assets/room-search.css', array(), '1.0');
+         wp_enqueue_style('master-hotel-room-search-paradise', $plugin_url . 'assets/paradise.css', array(), '1.0');
         wp_enqueue_script('master-hotel-room-search', $plugin_url . 'assets/room-search.js', array('jquery'), '1.0', true);
         // Localize script for AJAX URL and nonce
         wp_localize_script('master-hotel-room-search', 'hotelRoomSearchVars', array(
@@ -60,7 +61,7 @@ class HotelRoomSearcher {
         
         $atts = shortcode_atts(array(
             'show_title' => true,
-            'title' => 'Hotel Room Availability Search'
+            'title' => 'Căutare disponibilitate camere hotel'
         ), $atts);
         
         // Debug: Log processed attributes
@@ -76,19 +77,19 @@ class HotelRoomSearcher {
             <form id="hotel-availability-form">
                 <div class="search-row">
                     <div class="search-field">
-                        <label for="start_date">Check-in Date:</label>
-                        <input type="date" name="start_date" id="start_date" required>
+                        <label for="start_date">Data check-in:</label>
+                        <input type="date" value="<?php echo esc_attr(date('Y-m-d')); ?>" name="start_date" id="start_date" required>
                     </div>
                     
                     <div class="search-field">
-                        <label for="end_date">Check-out Date:</label>
-                        <input type="date" name="end_date" id="end_date" required>
+                        <label for="end_date">Data check-out:</label>
+                        <input type="date" value="<?php echo esc_attr(date('Y-m-d', strtotime('+1 day'))); ?>" name="end_date" id="end_date" required>
                     </div>
                 </div>
                 
                 <div class="search-row">
                     <div class="search-field">
-                        <label for="adults">Adults:</label>
+                        <label for="adults">Adulți:</label>
                         <select name="adults" id="adults" required>
                             <?php 
                             $default_adults = MasterHotelConfig::get_config('default_adults', 2);
@@ -100,7 +101,7 @@ class HotelRoomSearcher {
                     </div>
                     
                     <div class="search-field">
-                        <label for="kids">Children:</label>
+                        <label for="kids">Copii:</label>
                         <select name="kids" id="kids">
                             <?php 
                             $default_children = MasterHotelConfig::get_config('default_children', 0);
@@ -112,7 +113,7 @@ class HotelRoomSearcher {
                     </div>
                     
                     <div class="search-field">
-                        <label for="number_of_rooms">Number of Rooms:</label>
+                        <label for="number_of_rooms">Număr de camere:</label>
                         <select name="number_of_rooms" id="number_of_rooms" required>
                             <?php 
                             $max_rooms = MasterHotelConfig::get_config('max_rooms', 5);
@@ -124,12 +125,12 @@ class HotelRoomSearcher {
                 </div>
                 
                 <div class="search-actions">
-                    <button type="submit" class="search-btn">Search Available Rooms</button>
+                    <button type="submit" class="search-btn">Caută camere disponibile</button>
                 </div>
             </form>
             
             <div id="search-loading" style="display: none;">
-                <p>Searching for available rooms...</p>
+                <p>Se caută camere disponibile...</p>
             </div>
             
             <div id="search-results"></div>
@@ -144,7 +145,7 @@ class HotelRoomSearcher {
     public function ajax_search_rooms() {
         // Verify nonce
         if (!wp_verify_nonce($_POST['nonce'], 'hotel_search_nonce')) {
-            wp_send_json_error('Security check failed');
+            wp_send_json_error('Verificare de securitate eșuată');
         }
         
         try {
@@ -163,18 +164,18 @@ class HotelRoomSearcher {
             
             // Validate dates
             if (strtotime($search_params['start_date']) >= strtotime($search_params['end_date'])) {
-                wp_send_json_error('Check-out date must be after check-in date');
+                wp_send_json_error('Data de check-out trebuie să fie după data de check-in');
             }
             
             if (strtotime($search_params['start_date']) < strtotime('today')) {
-                wp_send_json_error('Check-in date cannot be in the past');
+                wp_send_json_error('Data de check-in nu poate fi în trecut');
             }
             
             // Search for combinations
             $combinations = $this->search_room_combinations($search_params);
             
             if ($combinations === false) {
-                wp_send_json_error('Failed to search for room combinations. Please try again.');
+                wp_send_json_error('Eroare la căutarea combinațiilor de camere. Vă rugăm să încercați din nou.');
             }
             
             // Enhance combinations with product data
@@ -186,7 +187,7 @@ class HotelRoomSearcher {
             ));
             
         } catch (Exception $e) {
-            wp_send_json_error('Search error: ' . $e->getMessage());
+            wp_send_json_error('Eroare de căutare: ' . $e->getMessage());
         }
     }
     
@@ -274,14 +275,20 @@ class HotelRoomSearcher {
 
                     if ($product) {
                         $room['product_id'] = $product->ID;
-                        $room['product_url'] = get_permalink($product->ID);
-                        $room['product_title'] =  $room['_related_article']->post_title;
+                        $room['product_url'] = get_permalink($room['_related_article']->ID) ? get_permalink($room['_related_article']->ID) : get_permalink($product->ID);
+                        $room['product_title'] =  $room['_related_article']->post_title ? $room['_related_article']->post_title : $room['_related_article']->post_title;
                         $room['product_price'] = get_post_meta($product->ID, '_price', true);
-
+                        $room['description'] = $product->post_content;
                         // Get product image
-                        $image_id = get_post_thumbnail_id($product->ID);
-                        if ($image_id) {
-                            $room['product_image'] = wp_get_attachment_image_url($image_id, 'medium');
+                        if( get_post_thumbnail_id($room['_related_article']->ID) ) {
+                            $image_id = get_post_thumbnail_id($room['_related_article']->ID);
+                            if ($image_id) {
+                                $image_url = wp_get_attachment_image_url($image_id, 'medium');
+                                $room['product_image'] = str_replace('http://localhost:8090', 'https://resortparadis.ro', $image_url);
+                            }
+                        }else {
+                            $image_url = wp_get_attachment_image_url(get_post_thumbnail_id($product->ID), 'medium');
+                            $room['product_image'] = str_replace('http://localhost:8082', 'https://resortparadis.ro', $image_url);
                         }
 
                         // Get all variations for this product (if variable)

@@ -50,6 +50,7 @@ class MasterHotelCurlHelper {
         curl_close($ch);
 
         $log_entry .= "\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
+       
         if (class_exists('MasterHotelLogHelper')) {
             MasterHotelLogHelper::write($log_entry);
         }

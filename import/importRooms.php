@@ -386,7 +386,6 @@ class HotelRoomsImporter {
         // Prepare product data
         $product_data = array(
             'post_title' => sprintf('Camera %s',  $room_data['tiplung']),
-            'post_content' => $this->generate_room_description($room_data),
             'post_status' => 'publish',
             'post_type' => 'product',
             'meta_input' => array(

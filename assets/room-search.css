@@ -1,6 +1,5 @@
 /* CSS for Hotel Room Search Plugin */
 #hotel-availability-search {
-    max-width: 800px;
     margin: 20px 0;
     padding: 20px;
     border: 1px solid #ddd;
@@ -69,18 +68,62 @@
 }
 
 .combo-option {
-    margin: 10px 0;
-    padding: 10px;
-    border-left: 3px solid #0073aa;
-    background: #f0f8ff;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--btn-bg);
+
 }
 
-.room-details {
+.room-info {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+}
+
+.room-image {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.room-image img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Checkout columns layout */
+.col2-set {
+    display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    margin: 0 -15px;
+}
+
+.col2-set .col-1,
+.col2-set .col-2 {
+    padding: 0 15px;
+    box-sizing: border-box;
+    width:  48% !important;
+}
+
+/* Desktop layout - two columns */
+@media (min-width: 768px) {
+    .col2-set .col-1,
+    .col2-set .col-2 {
+        width: 48% !important;
+    }
+}
+
+@media (min-width: 768px) {
+    .room-info {
+        flex-direction: row;
+        align-items: flex-start;
+    }
+
+    .room-image {
+        width: 200px;
+        flex-shrink: 0;
+        margin-right: 1rem;
+        margin-bottom: 0;
+    }
 }
 
 .room-info {
@@ -169,4 +212,22 @@
     color: #28a745;
     font-weight: bold;
     font-size: 16px;
+}
+
+.room-variation-radio-group ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.room-variation-radio-group li {
+    padding: 10px;
+    margin-bottom: 5px;
+    width: 100%;
+    border: 1px solid  var(--btn-bg);
+}
+
+.room-price {
+    color:var(--btn-bg);
 }
