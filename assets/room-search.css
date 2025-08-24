@@ -231,3 +231,28 @@
 .room-price {
     color:var(--btn-bg);
 }
+.select-holtes {
+    margin-bottom: 20px;
+}
+.select-holtes a {
+    padding: 10px 15px;
+    border: 1px solid var(--btn-bg);
+    border-radius: 3px;
+    text-decoration: none;
+    color: var(--btn-bg);
+    margin-right: 10px;
+}
+
+.select-holtes a.active {
+    background: var(--btn-bg);
+    color: white !important;
+}
+
+.combo-error-message {
+    border:1px solid red;
+    padding: 10px;
+}
+
+.room-info {
+    margin-bottom: 20px;
+}

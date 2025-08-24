@@ -1,4 +1,22 @@
 jQuery(document).ready(function ($) {
+    // Constants
+    const MESSAGES = {
+        SEARCHING: 'Se caută...',
+        SEARCH_BUTTON: 'Caută camere disponibile',
+        ADDING: 'Se adaugă...',
+        ADDED: 'Adăugat!',
+        ERROR_CART: 'Eroare la adăugarea în coș',
+        NO_RESULTS: 'Nicio cameră disponibilă pentru datele și criteriile selectate.',
+        CAPACITY_ERROR: 'Numărul total de adulți sau copii pentru camerele selectate depășește selecția dvs. de căutare. Vă rugăm să ajustați selecția.'
+    };
+
+    // Handle variation radio change to update price
+    $(document).on('change', '.room-variation-radio', function() {
+        const $input = $(this);
+        const $roomDetails = $input.closest('.room-info');
+        $roomDetails.find('.room-price').text(`Preț: ${$input.data('price')} lei`);
+    });
+
     // Set minimum date to today
     var today = new Date().toISOString().split('T')[0];
     $('#start_date, #end_date').attr('min', today);
@@ -65,7 +83,33 @@ jQuery(document).ready(function ($) {
             return;
         }
 
-        var html = '<h3>Combinații de camere disponibile</h3>';
+    var html = '<h3>Combinații de camere disponibile</h3>';
+    html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Noblesse</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Royal</a></div>';
+    
+    // Add click handler for hotel filtering
+    $(document).on('click', '.hotel-filter', function(e) {
+        e.preventDefault();
+        $('.select-holtes a').removeClass('active');
+        var selectedHotel = $(this).data('hotel');
+        $(this).addClass('active');
+
+        // Remove active class from all links and add to clicked one
+        $('.hotel-filter').removeClass('active');
+        $(this).addClass('active');
+        
+        if (selectedHotel === 'all') {
+            $('.combo-option').show();
+        } else {
+            $('.combo-option').each(function() {
+                var roomType = $(this).data('room-type');
+                if (roomType == selectedHotel || roomType == 3) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    });
 
     // Get adults and number_of_rooms from form for logic
     var $form = $('#hotel-availability-form');
@@ -73,7 +117,7 @@ jQuery(document).ready(function ($) {
     var totalKids = parseInt($form.find('#kids').val()) || 0;
     var totalRooms = parseInt($form.find('#number_of_rooms').val()) || 1;
     var hideSingle = (totalAdults > 0 && totalRooms > 0 && totalAdults % totalRooms === 0);
-    
+    var x = 0;
     $.each(data.combinations, function (roomType, typeData) {
             if (!typeData.combo || typeData.combo.length === 0) {
                 return; // Skip if no combinations
@@ -83,16 +127,32 @@ jQuery(document).ready(function ($) {
             var firstCombo = typeData.combo[0]; // Show only the first option
 
     
-
             // Show only the first combination
-            html += '<div class="combo-option">';
+            let type;
+            const hotels = String(typeData.hotels); // Ensure it's a string
+
+            if (/^1+$/.test(hotels)) {
+                type = 1;
+            } else if (/^2+$/.test(hotels)) {
+                type = 2;
+            } else {
+                type = 3; // For combinations like '12', '21', etc.
+            }
+            html += '<div class="combo-option" data-room-type="' + type + '">';
             var productIds = [];
             $.each(firstCombo, function (roomIndex, room) {
                 html += '<div class="room-details">';
                 html += '<div class="room-info">';
                 html += '<div class="room-image"><img src="' + (room.product_image || '') + '" alt="' + room.typeName + '"></div> ';
                 html += '<div class="room-details-info">';
-                html += '<h1><a href="' + room.product_url + '" >Camera: ' +  room.typeName + '</a></h1>';
+                if (room.hotel == 1) {
+                    $stars = 4;
+                }else{
+                    $stars = 3;
+                }
+
+                    html += '<h1><a href="' + room.product_url + '" >Camera: ' +  room.typeName + ' (' + $stars + ' stele)</a></h1>';
+
                 html += '<p>' + (room.description || '') + '</p>';
 
                 // If room has variations, show dropdown
@@ -112,12 +172,13 @@ jQuery(document).ready(function ($) {
                         }
                         var checkedAttr = '';
                         if (firstVisible) {
-                            checkedAttr = 'checked';
+                            checkedAttr = 'checked="checked"';
                             firstVisible = false;
                         }
                         var adultMax = isSingle ? 1 : room.adultMax;
                         var childMax = isSingle ? 0 : room.kidMax;
-                        html += '<li><label style="margin-right:10px;"><input type="radio" name="room-variation-' + roomIndex + '" class="room-variation-radio room-variation-select" value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '" data-adultMax="' + adultMax + '" data-childMax="' + childMax + '" ' + checkedAttr + '> ' + attrs + ' - ' + variation.price + ' lei' + (variation.in_stock ? '' : ' (Stoc epuizat)') + '</label></li>';
+                        html += '<li><label style="margin-right:10px;"><input type="radio" name="room-variation-' + x + '" class="room-variation-radio room-variation-select" value="' + variation.variation_id + '" data-price="' + variation.price + '" data-image="' + (variation.image || '') + '" data-adultMax="' + adultMax + '" data-childMax="' + childMax + '" ' + checkedAttr + '> ' + attrs + ' - ' + variation.price + ' lei' + (variation.in_stock ? '' : ' (Stoc epuizat)') + '</label></li>';
+                        x++;
                     });
                     html += '</ul></div>';
                     // Show price for first variation by default
@@ -127,13 +188,6 @@ jQuery(document).ready(function ($) {
                 }
                 html += '</div>';
                 html += '</div>';
-                // Handle variation dropdown change to update price
-                $('#search-results').on('change', '.room-variation-radio', function() {
-                    var $input = $(this);
-                    var price = $input.data('price');
-                    var $roomDetails = $input.closest('.room-info');
-                    $roomDetails.find('.room-price').text('Preț: ' + price + ' lei');
-                });
                 if (room.product_id) {
                     productIds.push(room.product_id);
                 }
@@ -151,41 +205,6 @@ jQuery(document).ready(function ($) {
         });
 
         $('#search-results').html(html);
-    }
-
-    function showSingleOption(roomType, typeData, $container, $button) {
-        var firstCombo = typeData.combo[0];
-        var totalOptions = typeData.combo.length;
-        var html = '<strong>Opțiunea 1' + (totalOptions > 1 ? ' din ' + totalOptions : '') + ':</strong>';
-        var productIds = [];
-        $.each(firstCombo, function (roomIndex, room) {
-            html += '<div class="room-details">';
-            html += '<div class="room-info">';
-            html += '<strong>Camera: ' + room.typeName + '</strong>';
-            if (room.product_price) {
-                html += '<br><span class="room-price">Preț: ' + room.product_price + ' lei</span>';
-            }
-            html += '</div>';
-            if (room.product_url) {
-                html += '<div class="room-actions">';
-                html += '<a href="' + room.product_url + '" class="view-product-btn" target="_blank">Vezi detalii</a>';
-                html += '</div>';
-            }
-            html += '</div>';
-            if (room.product_id) {
-                productIds.push(room.product_id);
-            }
-        });
-
-        html += '<div class="room-actions" style="margin-top:10px;">';
-        html += '<button class="add-combo-to-cart-btn" data-product-ids="' + productIds.join(',') + '">Adaugă totul în coș</button>';
-        html += '</div>';
-
-        html += '<div class="more-options">';
-        html += '<button class="show-more-btn" data-room-type="' + roomType + '">Arată încă ' + (totalOptions - 1) + ' opțiune(i)</button>';
-        html += '</div>';
-        $container.html(html);
-        $button.removeClass('expanded');
     }
 
     // Add all products in a combo to cart using the new AJAX endpoint
