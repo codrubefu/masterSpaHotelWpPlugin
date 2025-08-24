@@ -34,3 +34,25 @@ error_log('All MasterSpa Hotel plugin files included successfully');
 
 // Debug: Log that all files are loaded
 error_log('MasterHotel plugin files loaded successfully');
+
+// Add template override functionality
+function masterspa_hotel_locate_template($template, $template_name, $template_path) {
+    $plugin_path = MASTER_HOTEL_PLUGIN_DIR . 'templates/';
+    // Look within passed path within the theme - this is priority
+    $theme_template = locate_template([
+        trailingslashit($template_path) . $template_name,
+        $template_name
+    ]);
+
+    // Get the template from this plugin, if it exists
+    $plugin_template = $plugin_path . $template_name;
+    if (!$theme_template && file_exists($plugin_template)) {
+        return $plugin_template;
+    }
+
+    // Use default template
+    return $template;
+}
+
+// Hook into WooCommerce template loader
+add_filter('woocommerce_locate_template', 'masterspa_hotel_locate_template', 10, 3);
