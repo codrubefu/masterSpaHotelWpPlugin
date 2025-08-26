@@ -102,7 +102,7 @@ jQuery(document).ready(function ($) {
         } else {
             $('.combo-option').each(function() {
                 var roomType = $(this).data('room-type');
-                if (roomType == selectedHotel || roomType == 3) {
+                if (roomType == selectedHotel) {
                     $(this).show();
                 } else {
                     $(this).hide();
