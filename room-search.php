@@ -195,8 +195,8 @@ class HotelRoomSearcher {
             }
 
             $combinations_data = $api_response['data'];
-            $pagination = $api_response['data']['pagination'];
-            $search_params_return = isset($api_response['data']['search_params']) ? $api_response['data']['search_params'] : $search_params;
+            $pagination = $api_response['pagination'];
+            $search_params_return = isset($api_response['search_params']) ? $api_response['search_params'] : $search_params;
 
             // Enhance combinations with product data
             $enhanced_combinations = array();
