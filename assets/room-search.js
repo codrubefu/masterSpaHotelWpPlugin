@@ -97,7 +97,7 @@ jQuery(document).ready(function ($) {
         $('.hotel-filter').removeClass('active');
         $(this).addClass('active');
         
-        if (selectedHotel === 'all') {
+        if (selectedHotel === 'all' || selectedHotel == 3) {
             $('.combo-option').show();
         } else {
             $('.combo-option').each(function() {
