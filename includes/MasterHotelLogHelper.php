@@ -7,16 +7,30 @@ class MasterHotelLogHelper {
     const LOG_FILE = 'masterhotel.log';
 
     /**
-     * Write a message to the log file
+     * Write a message to the log file and database
      * @param string $message
      */
     public static function write($message) {
-        $log_path = self::get_log_path();
+        global $wpdb;
         $date = date('Y-m-d H:i:s');
         // Try to pretty-print JSON blocks in the message
         $message = self::pretty_print_json_in_message($message);
-        $entry = "\n==================== [$date] ====================\n$message\n================================================\n";
-        file_put_contents($log_path, $entry, FILE_APPEND);
+
+        // Log to database only
+        $table = $wpdb->prefix . 'masterhotel_logs';
+        // Create table if not exists (simple version)
+        $charset_collate = $wpdb->get_charset_collate();
+        $sql = "CREATE TABLE IF NOT EXISTS $table (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            log_time DATETIME NOT NULL,
+            message LONGTEXT NOT NULL
+        ) $charset_collate;";
+        $wpdb->query($sql);
+        // Insert log
+        $wpdb->insert($table, [
+            'log_time' => $date,
+            'message' => $message
+        ]);
     }
 
     /**
@@ -52,20 +66,24 @@ class MasterHotelLogHelper {
      * @return string
      */
     public static function get_log() {
-        $log_path = self::get_log_path();
-        if (file_exists($log_path)) {
-            return file_get_contents($log_path);
+        global $wpdb;
+        $table = $wpdb->prefix . 'masterhotel_logs';
+        // Get last 1000 logs (or all if less)
+        $results = $wpdb->get_results("SELECT * FROM $table ORDER BY id DESC LIMIT 1000");
+        if (!$results) return '';
+        $output = "";
+        foreach (array_reverse($results) as $row) {
+            $output .= "\n==================== [{$row->log_time}] ====================\n{$row->message}\n================================================\n";
         }
-        return '';
+        return $output;
     }
 
     /**
      * Clear the log file
      */
     public static function clear_log() {
-        $log_path = self::get_log_path();
-        if (file_exists($log_path)) {
-            file_put_contents($log_path, '');
-        }
+    global $wpdb;
+    $table = $wpdb->prefix . 'masterhotel_logs';
+    $wpdb->query("TRUNCATE TABLE $table");
     }
 }

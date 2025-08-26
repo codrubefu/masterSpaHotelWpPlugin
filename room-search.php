@@ -11,12 +11,22 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+$helper_path = dirname(__FILE__).'/includes/MasterHotelCurlHelper.php';
+if (file_exists($helper_path)) {
+    require_once $helper_path;
+}
 class HotelRoomSearcher {
     
     private $api_url;
     private $api_secret;
     
     public function __construct() {
+
+        // Use helper for cURL
+       
+     
+        
+
         // Get configuration from admin settings
         $this->api_url = MasterHotelConfig::get_config('search_api_url', 'http://laravel-app/api/rooms/search-combinations');
         $this->api_secret = MasterHotelConfig::get_config('api_secret', 'your-very-secure-secret-key-here');
@@ -198,46 +208,43 @@ class HotelRoomSearcher {
     private function search_room_combinations($params) {
         // Ensure params are properly formatted
         $json_params = json_encode($params);
-        
+       
         // Log the request for debugging
         error_log('Hotel search API request to: ' . $this->api_url);
         error_log('Hotel search API params: ' . $json_params);
-        
-        $response = wp_remote_post($this->api_url, array(
-            'timeout' => 30,
-            'sslverify' => false,
-            'headers' => array(
-                'X-API-Secret' => $this->api_secret,
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json'
-            ),
-            'body' => $json_params
-        ));
-        
-        if (is_wp_error($response)) {
-            $error_message = $response->get_error_message();
-            error_log('Hotel search API error: ' . $error_message);
+
+
+        $params_array = $params;
+        try {
+              $curl_response = MasterHotelCurlHelper::post_json($this->api_url, $params_array, $headers);
+        } catch (Exception $e) {
+            error_log('Hotel search API JSON decode error: ' . $e->getMessage());
             return false;
         }
-        
-        $response_code = wp_remote_retrieve_response_code($response);
+        if (!empty($curl_response['error'])) {
+            error_log('Hotel search API error: ' . $curl_response['error']);
+            return false;
+        }
+  
+        $response_code = $curl_response['http_code'];
+       
         error_log('Hotel search API response code: ' . $response_code);
-        
+
         if ($response_code !== 200) {
             error_log('Hotel search API returned status: ' . $response_code);
             return false;
         }
-        
-        $response_body = wp_remote_retrieve_body($response);
-        error_log('Hotel search API response body: ' . substr($response_body, 0, 500)); // Log first 500 chars
-        
+
+        $response_body = $curl_response['response'];
+        error_log('Hotel search API response body: ' . substr($response_body, 0, 500));
+
         $data = json_decode($response_body, true);
-        
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             error_log('Hotel search JSON decode error: ' . json_last_error_msg());
             return false;
         }
-        
+
         return $data;
     }
     

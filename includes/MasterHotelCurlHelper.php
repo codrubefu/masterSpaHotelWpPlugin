@@ -4,21 +4,17 @@
  * Simple static helper for sending POST requests with cURL
  */
 class MasterHotelCurlHelper {
-    /**
-     * Send a POST request with JSON data
-     * @param string $url
-     * @param array $data
-     * @param array $headers (optional)
-     * @return array [ 'response' => string, 'http_code' => int, 'error' => string|null ]
-     */
+
     public static function post_json($url, $data, $headers = array()) {
         // Logging
+     
         if (!class_exists('MasterHotelLogHelper')) {
             $log_path = dirname(__FILE__) . '/MasterHotelLogHelper.php';
             if (file_exists($log_path)) {
                 require_once $log_path;
             }
         }
+
         // Add X-API-Secret header if available from config
         $api_secret = '';
         if (!class_exists('MasterHotelConfig')) {
