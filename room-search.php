@@ -166,36 +166,50 @@ class HotelRoomSearcher {
                 'start_date' => sanitize_text_field($_POST['start_date']),
                 'end_date' => sanitize_text_field($_POST['end_date'])
             );
-                // Save search params in session
-                if (!session_id()) {
-                    session_start();
-                }
-                $_SESSION['hotel_search_params'] = $search_params;
-            
+            // Add page parameter if present
+            $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+            $search_params['page'] = $page;
+
+            // Save search params in session
+            if (!session_id()) {
+                session_start();
+            }
+            $_SESSION['hotel_search_params'] = $search_params;
+
             // Validate dates
             if (strtotime($search_params['start_date']) >= strtotime($search_params['end_date'])) {
                 wp_send_json_error('Data de check-out trebuie să fie după data de check-in');
             }
-            
+
             if (strtotime($search_params['start_date']) < strtotime('today')) {
                 wp_send_json_error('Data de check-in nu poate fi în trecut');
             }
-            
+
+
             // Search for combinations
-            $combinations = $this->search_room_combinations($search_params);
-            
-            if ($combinations === false) {
+            $api_response = $this->search_room_combinations($search_params);
+
+            // Expecting $api_response['data'] to have 'data' and 'pagination' keys
+            if ($api_response === false || !isset($api_response) || !isset($api_response['pagination'])) {
                 wp_send_json_error('Eroare la căutarea combinațiilor de camere. Vă rugăm să încercați din nou.');
             }
-            
+
+            $combinations_data = $api_response['data'];
+            $pagination = $api_response['data']['pagination'];
+            $search_params_return = isset($api_response['data']['search_params']) ? $api_response['data']['search_params'] : $search_params;
+
             // Enhance combinations with product data
-            $enhanced_combinations = $this->enhance_combinations_with_products($combinations);
-            
+            $enhanced_combinations = array();
+            foreach ($combinations_data as $combo) {
+                $enhanced_combinations[] = $this->enhance_combinations_with_products([$combo])[0];
+            }
+
             wp_send_json_success(array(
                 'combinations' => $enhanced_combinations,
-                'search_params' => $search_params
+                'pagination' => $pagination,
+                'search_params' => $search_params_return
             ));
-            
+
         } catch (Exception $e) {
             wp_send_json_error('Eroare de căutare: ' . $e->getMessage());
         }
