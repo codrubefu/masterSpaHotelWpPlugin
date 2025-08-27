@@ -1,7 +1,7 @@
 <?php
 // Send order data to webhook when order is completed
-add_action('woocommerce_order_status_completed', function($order_id) {
-   
+add_action('woocommerce_order_status_processing', function($order_id) {
+
     if (!class_exists('WC_Order')) return;
     $order = wc_get_order($order_id);
     if (!$order) return;
