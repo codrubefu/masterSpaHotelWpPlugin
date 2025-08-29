@@ -54,7 +54,7 @@ class HotelRoomSearcher {
         $plugin_url = plugin_dir_url(__FILE__);
         wp_enqueue_style('master-hotel-room-search', $plugin_url . 'assets/room-search.css', array(), '1.0');
          wp_enqueue_style('master-hotel-room-search-paradise', $plugin_url . 'assets/paradise.css', array(), '1.0');
-        wp_enqueue_script('master-hotel-room-search', $plugin_url . 'assets/room-search.js', array('jquery'), '1.0', true);
+        wp_enqueue_script('master-hotel-room-search', $plugin_url . 'assets/room-search.js', array('jquery'), '1.0'.rand(0,11111111), true);
         // Localize script for AJAX URL and nonce
         wp_localize_script('master-hotel-room-search', 'hotelRoomSearchVars', array(
             'ajax_url' => admin_url('admin-ajax.php'),
