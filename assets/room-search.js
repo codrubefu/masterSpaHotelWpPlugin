@@ -402,4 +402,32 @@ jQuery(document).ready(function ($) {
             }
         });
     });
+
+    // Helper to re-apply hotel filter after loading more results
+    function applyCurrentHotelFilter() {
+        const $active = $('.hotel-filter.active');
+        if ($active.length) {
+            const selectedHotel = $active.data('hotel');
+            if (selectedHotel === 'all' || selectedHotel == 3) {
+                $('.combo-option').show();
+            } else {
+                $('.combo-option').each(function() {
+                    const roomType = $(this).data('room-type');
+                    if (roomType == selectedHotel) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            }
+        }
+    }
+
+    // Patch displayResults to re-apply hotel filter after rendering
+    const originalDisplayResults2 = displayResults;
+    displayResults = function(data, append) {
+        originalDisplayResults2(data, append);
+        renderShowMoreButton();
+        applyCurrentHotelFilter();
+    };
 });
