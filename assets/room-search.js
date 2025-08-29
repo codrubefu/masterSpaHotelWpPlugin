@@ -165,6 +165,7 @@ jQuery(document).ready(function ($) {
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
+console.log(room.variations);
                     $.each(room.variations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
