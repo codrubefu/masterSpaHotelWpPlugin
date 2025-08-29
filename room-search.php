@@ -348,8 +348,7 @@ class HotelRoomSearcher {
             }
         }
         // Calculate priceCombo for all combinations
-        $this->calculate_price_combo($combinations);
-        return $this->sortCombinationsByPriceCombo($combinations);
+        return $combinations;
     }
 
     /**
@@ -367,46 +366,8 @@ class HotelRoomSearcher {
         }
         return null;
     }
-    /**
-     * Calculate priceCombo for each room_type in combinations
-     */
-    private function calculate_price_combo(&$combinations) {
-        foreach ($combinations as &$type_data) {
-            if (!isset($type_data['combo']) || !is_array($type_data['combo'])) {
-                continue;
-            }
-            $type_data['priceCombo'] = array();
-            foreach ($type_data['combo'] as $combo) {
-                $combo_sum = 0;
-                foreach ($combo as $room) {
-                    if (isset($room['cheapest_price'])) {
-                        $combo_sum += floatval($room['cheapest_price']);
-                    }
-                }
-                $type_data['priceCombo'] = (int)$combo_sum;
-            }
-        }
-    }
-
-    /**
-     * Sorts the combinations array by priceCombo ascending (cheapest first)
-     *
-     * @param array $combinations The combinations array to sort
-     * @return array The sorted combinations array
-     */
-    function sortCombinationsByPriceCombo(array $combinations): array
-    {
-        uasort($combinations, function ($a, $b) {
-            $aPrice = is_array($a['priceCombo']) ? min($a['priceCombo']) : (is_numeric($a['priceCombo']) ? $a['priceCombo'] : PHP_FLOAT_MAX);
-            $bPrice = is_array($b['priceCombo']) ? min($b['priceCombo']) : (is_numeric($b['priceCombo']) ? $b['priceCombo'] : PHP_FLOAT_MAX);
-            return $aPrice <=> $bPrice;
-        });
-        return $combinations;
-    }
 
 
-    
-    
     /**
      * Find WooCommerce product by room type
      */
