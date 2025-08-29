@@ -116,7 +116,7 @@ jQuery(document).ready(function ($) {
         if (!append) {
             // Only add headers and filters on the first page load.
             html += '<h3>Combinații de camere disponibile</h3>';
-            html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Noblesse</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Royal</a></div>';
+            html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Royal</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Noblesse</a></div>';
         }
 
         // Get search criteria from form for validation.
