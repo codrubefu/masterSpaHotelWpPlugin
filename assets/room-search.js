@@ -165,7 +165,7 @@ jQuery(document).ready(function ($) {
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
-console.log(room.variations);
+
                     $.each(room.variations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
@@ -225,6 +225,46 @@ console.log(room.variations);
             $searchResults.html(html);
         }
     }
+
+    // --- Show More Button Logic ---
+    function renderShowMoreButton() {
+        // Remove any existing button
+        $('#show-more-results').remove();
+        if (state.currentPage < state.lastPage) {
+            $searchResults.append('<div id="show-more-results" style="text-align:center; margin:20px 0;"><button class="show-more-btn">Arată mai multe</button></div>');
+        }
+    }
+
+    // Add click handler for show more
+    $(document).on('click', '.show-more-btn', function() {
+        if (state.isLoadingNextPage || state.currentPage >= state.lastPage) return;
+        state.isLoadingNextPage = true;
+        const nextPage = state.currentPage + 1;
+        const params = Object.assign({}, state.lastSearchParams, { page: nextPage });
+        $searchLoading.show();
+        $.post(window.hotelRoomSearchVars.ajax_url, params, function (response) {
+            $searchLoading.hide();
+            const resp = (typeof response === 'string') ? JSON.parse(response) : response;
+            if (resp.success) {
+                const pageData = resp.data || resp;
+                state.currentPage = (pageData.pagination && pageData.pagination.current_page) ? pageData.pagination.current_page : nextPage;
+                state.lastPage = (pageData.pagination && pageData.pagination.last_page) ? pageData.pagination.last_page : state.lastPage;
+                displayResults(pageData, true); // Append results
+                renderShowMoreButton();
+            }
+            state.isLoadingNextPage = false;
+        }).fail(function () {
+            $searchLoading.hide();
+            state.isLoadingNextPage = false;
+        });
+    });
+
+    // --- Patch displayResults to show/hide the button ---
+    const originalDisplayResults = displayResults;
+    displayResults = function(data, append) {
+        originalDisplayResults(data, append);
+        renderShowMoreButton();
+    };
 
     // --- Hotel Filtering Logic ---
     $(document).on('click', '.hotel-filter', function(e) {
