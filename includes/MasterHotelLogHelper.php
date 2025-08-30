@@ -86,4 +86,45 @@ class MasterHotelLogHelper {
     $table = $wpdb->prefix . 'masterhotel_logs';
     $wpdb->query("TRUNCATE TABLE $table");
     }
+
+    /**
+     * Log a message with a specific level
+     * @param string $level
+     * @param string $message
+     * @param mixed $context
+     */
+    public static function log($level, $message, $context = null) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'masterhotel_logs';
+        $wpdb->insert($table, [
+            'log_time' => current_time('mysql'),
+            'log_level' => $level,
+            'log_message' => $message,
+            'log_context' => $context ? maybe_serialize($context) : null
+        ]);
+    }
+
+    /**
+     * Get logs with pagination
+     * @param int $paged
+     * @param int $per_page
+     * @return array
+     */
+    public static function get_logs($paged = 1, $per_page = 20) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'masterhotel_logs';
+        $offset = ($paged - 1) * $per_page;
+        $logs = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $table ORDER BY id DESC LIMIT %d OFFSET %d",
+            $per_page, $offset
+        ));
+        $total = $wpdb->get_var("SELECT COUNT(*) FROM $table");
+        return [
+            'logs' => $logs,
+            'total' => $total,
+            'per_page' => $per_page,
+            'current_page' => $paged,
+            'last_page' => ceil($total / $per_page)
+        ];
+    }
 }
