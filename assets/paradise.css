@@ -1,4 +1,5 @@
 .add-combo-to-cart-btn,
+.reset-btn,
 .search-btn {
     position: relative;
     z-index: 9;

@@ -136,6 +136,7 @@ class HotelRoomSearcher {
                 
                 <div class="search-actions">
                     <button type="submit" class="search-btn">Caută camere disponibile</button>
+                    <button type="button" class="reset-btn" style="display: none;">Modifica cautarea</button>
                 </div>
             </form>
             

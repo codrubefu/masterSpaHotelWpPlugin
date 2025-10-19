@@ -26,6 +26,32 @@ jQuery(document).ready(function ($) {
     const $searchResults = $('#search-results');
     const $searchLoading = $('#search-loading');
     const $searchBtn = $('.search-btn');
+    const $resetBtn = $('.reset-btn');
+    const $formFields = $form.find('input, select, button:not(.reset-btn)');
+
+    // --- Form State Management ---
+    function disableForm() {
+        $formFields.prop('disabled', true);
+        $searchBtn.hide();
+        $resetBtn.show();
+    }
+
+    function enableForm() {
+        $formFields.prop('disabled', false);
+        $searchBtn.show();
+        $resetBtn.hide();
+        $searchResults.empty();
+        $searchLoading.hide();
+        state.currentPage = 1;
+        state.lastPage = 1;
+        state.lastSearchParams = {};
+        state.isLoadingNextPage = false;
+    }
+
+    // --- Reset Button Handler ---
+    $resetBtn.on('click', function() {
+        enableForm();
+    });
 
     // --- Date Picker Logic ---
     // Set minimum date to today for both start and end dates.
@@ -94,6 +120,8 @@ jQuery(document).ready(function ($) {
                     state.currentPage = resp.data.pagination.current_page;
                 }
                 displayResults(resp.data);
+                // Disable form and show reset button after successful search
+                disableForm();
             } else {
                 $searchResults.html(`<div class="error-message">${resp.data || 'Nu există date'}</div>`);
             }

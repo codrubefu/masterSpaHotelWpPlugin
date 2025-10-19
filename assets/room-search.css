@@ -52,6 +52,35 @@
     background: #005a87;
 }
 
+.reset-btn {
+    background: #dc3545;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 10px;
+}
+
+.reset-btn:hover {
+    background: #c82333;
+}
+
+.search-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Disabled form styling */
+.search-field input:disabled,
+.search-field select:disabled {
+    background-color: #f5f5f5;
+    color: #666;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 .room-combination {
     margin: 20px 0;
     padding: 15px;
