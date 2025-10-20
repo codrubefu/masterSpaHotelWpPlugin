@@ -105,6 +105,17 @@ class MasterHotelConfig {
             'api_settings'
         );
 
+
+         // Order Reserve Webhook URL
+        add_settings_field(
+            'order_reserve_webhook_url',
+            'Order Reserve Webhook URL',
+            array($this, 'order_reserve_webhook_url_callback'),
+            'masterhotel-config',
+            'api_settings'
+        );
+
+
         // API Secret Key
         add_settings_field(
             'api_secret',
@@ -211,7 +222,11 @@ class MasterHotelConfig {
         echo '<p class="description">URL for sending order data when status changes to completed.</p>';
     }
     
-    
+    public function order_reserve_webhook_url_callback() {
+        $value = $this->get_option('order_reserve_webhook_url');
+        echo '<input type="url" name="' . $this->option_name . '[order_reserve_webhook_url]" value="' . esc_attr($value) . '" class="regular-text" />';
+        echo '<p class="description">URL for sending order data when a reservation is made.</p>';
+    }
     /**
      * Sanitize settings input
      */
@@ -228,6 +243,10 @@ class MasterHotelConfig {
 
         if (isset($input['order_completed_webhook_url'])) {
             $sanitized['order_completed_webhook_url'] = esc_url_raw($input['order_completed_webhook_url']);
+        }
+
+        if (isset($input['order_reserve_webhook_url'])) {
+            $sanitized['order_reserve_webhook_url'] = esc_url_raw($input['order_reserve_webhook_url']);
         }
 
         if (isset($input['api_secret'])) {
