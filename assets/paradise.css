@@ -23,3 +23,15 @@
     transition: 0.4s;
     cursor: pointer;
 }
+
+.woocommerce-cart-form {
+	display:none !important;
+}
+
+.woocommerce-checkout #customer_details {
+	width:100% !important;
+}
+
+.woocommerce-checkout-review-order-table {
+	display:none !important;
+}

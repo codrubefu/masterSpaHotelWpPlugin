@@ -10,6 +10,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+add_filter( 'woocommerce_blocks_use_cart_checkout_templates', '__return_false' );
 
 // Define plugin constants
 define('MASTER_HOTEL_PLUGIN_DIR', plugin_dir_path(__FILE__));
