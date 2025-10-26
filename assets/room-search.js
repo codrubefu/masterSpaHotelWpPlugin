@@ -188,13 +188,20 @@ jQuery(document).ready(function ($) {
 
                 // If room has variations, show radio buttons.
                 if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
+                    // Sort variations by price in descending order
+                    const sortedVariations = room.variations.slice().sort((a, b) => {
+                        const priceA = parseFloat(a.price) || 0;
+                        const priceB = parseFloat(b.price) || 0;
+                        return priceB - priceA; // Descending order
+                    });
+                    
                     comboHtml += `
                         <label>Alegeți o variantă:</label>
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
 
-                    $.each(room.variations, function(vi, variation) {
+                    $.each(sortedVariations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
                         

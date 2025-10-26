@@ -78,22 +78,33 @@ class CustomCheckoutFields {
             'priority'    => 31
         );
 
-        $fields['billing']['billing_company_state'] = array(
-            'label'       => __('Județ/Stat Companie', 'woocommerce'),
-            'placeholder' => _x('Județul sau statul companiei', 'placeholder', 'woocommerce'),
+        $fields['billing']['billing_company_address'] = array(
+            'label'       => __('Adresa Companie', 'woocommerce'),
+            'placeholder' => _x('Adresa companiei', 'placeholder', 'woocommerce'),
             'required'    => false, // Will be dynamically required via JavaScript
             'class'       => array('form-row-last', 'company-field'),
             'clear'       => true,
             'priority'    => 32
         );
 
+        $fields['billing']['billing_company_state'] = array(
+            'type'        => 'select',
+            'label'       => __('Județ/Stat Companie', 'woocommerce'),
+            'required'    => false, // Will be dynamically required via JavaScript
+            'class'       => array('form-row-first', 'company-field'),
+            'priority'    => 33,
+            'options'     => array(
+                '' => __('Selectați județul/statul...', 'woocommerce')
+            )
+        );
+
         $fields['billing']['billing_company_country'] = array(
             'type'        => 'select',
             'label'       => __('Țară Companie', 'woocommerce'),
             'required'    => false, // Will be dynamically required via JavaScript
-            'class'       => array('form-row-wide', 'company-field'),
+            'class'       => array('form-row-last', 'company-field'),
             'clear'       => true,
-            'priority'    => 33,
+            'priority'    => 34,
             'options'     => array(
                 ''   => __('Selectați țara...', 'woocommerce'),
                 'RO' => __('România', 'woocommerce'),
@@ -362,6 +373,7 @@ class CustomCheckoutFields {
             echo '<p><strong>' . __('Banca', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_banca', true) . '</p>';
             echo '<p><strong>' . __('Cont IBAN', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_cont_iban', true) . '</p>';
             echo '<p><strong>' . __('Oraș Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_city', true) . '</p>';
+            echo '<p><strong>' . __('Adresa Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_address', true) . '</p>';
             echo '<p><strong>' . __('Județ/Stat Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_state', true) . '</p>';
             echo '<p><strong>' . __('Țară Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_country', true) . '</p>';
         }
@@ -376,6 +388,7 @@ class CustomCheckoutFields {
             'billing_banca',
             'billing_cont_iban',
             'billing_company_city',
+            'billing_company_address',
             'billing_company_state',
             'billing_company_country'
         );
@@ -395,9 +408,8 @@ class CustomCheckoutFields {
                 'billing_company_name' => __('Nume Companie', 'woocommerce'),
                 'billing_cui' => __('CUI', 'woocommerce'),
                 'billing_reg_com' => __('Reg.Com.', 'woocommerce'),
-                'billing_banca' => __('Banca', 'woocommerce'),
-                'billing_cont_iban' => __('Cont IBAN', 'woocommerce'),
                 'billing_company_city' => __('Oraș Companie', 'woocommerce'),
+                'billing_company_address' => __('Adresa Companie', 'woocommerce'),
                 'billing_company_state' => __('Județ/Stat Companie', 'woocommerce'),
                 'billing_company_country' => __('Țară Companie', 'woocommerce')
             );
@@ -425,12 +437,20 @@ function company_fields_script() {
                 function toggleCompanyFields() {
                     if ($('#billing_company_details').is(':checked')) {
                         $('.company-field').closest('.form-row').show();
-                        // Add required attribute and asterisk to company fields
+                        // Add required attribute and asterisk to company fields (except bank and IBAN)
                         $('.company-field').each(function() {
-                            $(this).attr('required', 'required');
-                            var $label = $(this).closest('.form-row').find('label');
-                            if (!$label.find('.required').length) {
-                                $label.append(' <abbr class="required" title="required">*</abbr>');
+                            var fieldName = $(this).attr('name');
+                            // Skip bank and IBAN fields - they are optional
+                            if (fieldName !== 'billing_banca' && fieldName !== 'billing_cont_iban') {
+                                $(this).attr('required', 'required');
+                                var $label = $(this).closest('.form-row').find('label');
+                                if (!$label.find('.required').length) {
+                                    $label.append(' <abbr class="required" title="required">*</abbr>');
+                                }
+                            } else {
+                                // Ensure bank and IBAN fields never have asterisk or required attribute
+                                $(this).removeAttr('required');
+                                $(this).closest('.form-row').find('label .required').remove();
                             }
                         });
                     } else {
@@ -451,6 +471,112 @@ function company_fields_script() {
                 // Check initial state
                 toggleCompanyFields();
 
+                // Romanian counties (județe) list
+                var romanianCounties = {
+                    'AB': 'Alba',
+                    'AR': 'Arad',
+                    'AG': 'Argeș',
+                    'BC': 'Bacău',
+                    'BH': 'Bihor',
+                    'BN': 'Bistrița-Năsăud',
+                    'BT': 'Botoșani',
+                    'BV': 'Brașov',
+                    'BR': 'Brăila',
+                    'BZ': 'Buzău',
+                    'CS': 'Caraș-Severin',
+                    'CL': 'Călărași',
+                    'CJ': 'Cluj',
+                    'CT': 'Constanța',
+                    'CV': 'Covasna',
+                    'DB': 'Dâmbovița',
+                    'DJ': 'Dolj',
+                    'GL': 'Galați',
+                    'GR': 'Giurgiu',
+                    'GJ': 'Gorj',
+                    'HR': 'Harghita',
+                    'HD': 'Hunedoara',
+                    'IL': 'Ialomița',
+                    'IS': 'Iași',
+                    'IF': 'Ilfov',
+                    'MM': 'Maramureș',
+                    'MH': 'Mehedinți',
+                    'MS': 'Mureș',
+                    'NT': 'Neamț',
+                    'OT': 'Olt',
+                    'PH': 'Prahova',
+                    'SM': 'Satu Mare',
+                    'SJ': 'Sălaj',
+                    'SB': 'Sibiu',
+                    'SV': 'Suceava',
+                    'TR': 'Teleorman',
+                    'TM': 'Timiș',
+                    'TL': 'Tulcea',
+                    'VS': 'Vaslui',
+                    'VL': 'Vâlcea',
+                    'VN': 'Vrancea',
+                    'B': 'București'
+                };
+
+                // Function to update state options based on selected country
+                function updateStateOptions() {
+                    var $stateField = $('#billing_company_state');
+                    var $countryField = $('#billing_company_country');
+                    var selectedCountry = $countryField.val();
+                    var $stateRow = $stateField.closest('.form-row');
+                    
+                    if (selectedCountry === 'RO') {
+                        // For Romania, use dropdown with counties
+                        if ($stateField.prop('tagName') !== 'SELECT') {
+                            // Replace input with select
+                            var currentValue = $stateField.val();
+                            var selectHtml = '<select name="billing_company_state" id="billing_company_state" class="select company-field" data-placeholder="Selectați județul...">';
+                            selectHtml += '<option value="">Selectați județul...</option>';
+                            
+                            // Add Romanian counties
+                            $.each(romanianCounties, function(code, name) {
+                                var selected = (currentValue === code) ? ' selected' : '';
+                                selectHtml += '<option value="' + code + '"' + selected + '>' + name + '</option>';
+                            });
+                            selectHtml += '</select>';
+                            
+                            $stateField.replaceWith(selectHtml);
+                        } else {
+                            // Already a select, just update options
+                            $stateField.empty();
+                            $stateField.append('<option value="">Selectați județul...</option>');
+                            
+                            // Add Romanian counties
+                            $.each(romanianCounties, function(code, name) {
+                                $stateField.append('<option value="' + code + '">' + name + '</option>');
+                            });
+                        }
+                    } else {
+                        // For other countries, use text input
+                        if ($stateField.prop('tagName') !== 'INPUT') {
+                            // Replace select with input
+                            var currentValue = $stateField.val();
+                            var inputHtml = '<input type="text" name="billing_company_state" id="billing_company_state" placeholder="Județul sau statul companiei" class="input-text company-field" value="' + currentValue + '">';
+                            
+                            $stateField.replaceWith(inputHtml);
+                        }
+                    }
+                    
+                    // Re-apply company field styling and validation
+                    var $newStateField = $('#billing_company_state');
+                    if ($('#billing_company_details').is(':checked')) {
+                        // State field is always required when company details are checked
+                        $newStateField.attr('required', 'required');
+                    }
+                }
+
+                // Update state options when country changes
+                $(document).on('change', '#billing_company_country', function() {
+                    updateStateOptions();
+                });
+
+                // Initialize state options on page load
+                updateStateOptions();
+
                 // Additional validation on form submission
                 $('body').on('checkout_error', function() {
                     // Clear previous error styling
@@ -467,6 +593,12 @@ function company_fields_script() {
                             var $field = $(this);
                             var $row = $field.closest('.form-row');
                             var fieldLabel = $row.find('label').text().replace('*', '').trim();
+                            var fieldName = $field.attr('name');
+                            
+                            // Skip validation for bank and IBAN fields - they are optional
+                            if (fieldName === 'billing_banca' || fieldName === 'billing_cont_iban') {
+                                return true; // continue to next iteration
+                            }
                             
                             if ($field.val().trim() === '') {
                                 hasErrors = true;
@@ -491,12 +623,19 @@ function company_fields_script() {
                     return true;
                 });
 
-                // Real-time validation
-                $('.company-field').on('blur change', function() {
+                // Real-time validation (using event delegation for dynamic fields)
+                $(document).on('blur change', '.company-field', function() {
                     var $field = $(this);
                     var $row = $field.closest('.form-row');
+                    var fieldName = $field.attr('name');
                     
                     if ($('#billing_company_details').is(':checked')) {
+                        // Skip validation for bank and IBAN fields - they are optional
+                        if (fieldName === 'billing_banca' || fieldName === 'billing_cont_iban') {
+                            $row.removeClass('woocommerce-invalid'); // Always remove error styling for optional fields
+                            return;
+                        }
+                        
                         if ($field.val().trim() === '') {
                             $row.addClass('woocommerce-invalid');
                         } else {
