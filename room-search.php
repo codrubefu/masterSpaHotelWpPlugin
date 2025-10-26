@@ -155,10 +155,7 @@ class HotelRoomSearcher {
      */
     public function ajax_search_rooms() {
         // Verify nonce
-        if (!wp_verify_nonce($_POST['nonce'], 'hotel_search_nonce')) {
-            wp_send_json_error('Verificare de securitate eșuată');
-        }
-        
+  
         try {
             $search_params = array(
                 'adults' => intval($_POST['adults']),

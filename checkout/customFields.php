@@ -70,6 +70,32 @@ class CustomCheckoutFields {
             'priority'    => 30
         );
 
+        $fields['billing']['billing_company_city'] = array(
+            'label'       => __('Oraș Companie', 'woocommerce'),
+            'placeholder' => _x('Orașul companiei', 'placeholder', 'woocommerce'),
+            'required'    => false, // Will be dynamically required via JavaScript
+            'class'       => array('form-row-first', 'company-field'),
+            'priority'    => 31
+        );
+
+        $fields['billing']['billing_company_state'] = array(
+            'label'       => __('Județ/Stat Companie', 'woocommerce'),
+            'placeholder' => _x('Județul sau statul companiei', 'placeholder', 'woocommerce'),
+            'required'    => false, // Will be dynamically required via JavaScript
+            'class'       => array('form-row-last', 'company-field'),
+            'clear'       => true,
+            'priority'    => 32
+        );
+
+        $fields['billing']['billing_company_country'] = array(
+            'label'       => __('Țară Companie', 'woocommerce'),
+            'placeholder' => _x('Țara companiei', 'placeholder', 'woocommerce'),
+            'required'    => false, // Will be dynamically required via JavaScript
+            'class'       => array('form-row-wide', 'company-field'),
+            'clear'       => true,
+            'priority'    => 33
+        );
+
         return $fields;
     }
 
@@ -82,6 +108,9 @@ class CustomCheckoutFields {
             echo '<p><strong>' . __('Reg.Com.', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_reg_com', true) . '</p>';
             echo '<p><strong>' . __('Banca', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_banca', true) . '</p>';
             echo '<p><strong>' . __('Cont IBAN', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_cont_iban', true) . '</p>';
+            echo '<p><strong>' . __('Oraș Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_city', true) . '</p>';
+            echo '<p><strong>' . __('Județ/Stat Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_state', true) . '</p>';
+            echo '<p><strong>' . __('Țară Companie', 'woocommerce') . ':</strong> ' . get_post_meta($order->get_id(), '_billing_company_country', true) . '</p>';
         }
     }
 
@@ -92,7 +121,10 @@ class CustomCheckoutFields {
             'billing_cui',
             'billing_reg_com',
             'billing_banca',
-            'billing_cont_iban'
+            'billing_cont_iban',
+            'billing_company_city',
+            'billing_company_state',
+            'billing_company_country'
         );
 
         foreach ($fields as $field) {
@@ -111,7 +143,10 @@ class CustomCheckoutFields {
                 'billing_cui' => __('CUI', 'woocommerce'),
                 'billing_reg_com' => __('Reg.Com.', 'woocommerce'),
                 'billing_banca' => __('Banca', 'woocommerce'),
-                'billing_cont_iban' => __('Cont IBAN', 'woocommerce')
+                'billing_cont_iban' => __('Cont IBAN', 'woocommerce'),
+                'billing_company_city' => __('Oraș Companie', 'woocommerce'),
+                'billing_company_state' => __('Județ/Stat Companie', 'woocommerce'),
+                'billing_company_country' => __('Țară Companie', 'woocommerce')
             );
 
             // Validate each required field
