@@ -21,22 +21,67 @@ if (!function_exists('masterhotel_get_room_lock_key')) {
     }
 }
 
+if (!function_exists('masterhotel_room_lock_date_has_year')) {
+    function masterhotel_room_lock_date_has_year($date_string) {
+        return is_string($date_string) && preg_match('/\\b\\d{4}\\b/', $date_string);
+    }
+}
+
+if (!function_exists('masterhotel_parse_room_lock_date')) {
+    function masterhotel_parse_room_lock_date($date_string, $fallback_year = null) {
+        if (empty($date_string)) {
+            return null;
+        }
+
+        $date_string = trim((string) $date_string);
+        if ($date_string === '') {
+            return null;
+        }
+
+        $normalized_input = str_replace(array('\\', '/'), '.', $date_string);
+        $formats = array(
+            'Y-m-d',
+            'd-m-Y',
+            'd.m.Y',
+            'd-m',
+            'd.m'
+        );
+
+        foreach ($formats as $format) {
+            $date = DateTime::createFromFormat($format, $normalized_input);
+            if ($date instanceof DateTime) {
+                if ($fallback_year && strpos($format, 'Y') === false) {
+                    $date->setDate(intval($fallback_year), intval($date->format('m')), intval($date->format('d')));
+                }
+
+                return $date;
+            }
+        }
+
+        try {
+            return new DateTime($date_string);
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+}
+
 if (!function_exists('masterhotel_get_room_lock_dates')) {
     function masterhotel_get_room_lock_dates($start_date, $end_date) {
         if (empty($start_date)) {
             return array();
         }
 
-        try {
-            $start = new DateTime($start_date);
-        } catch (Exception $e) {
+        $start = masterhotel_parse_room_lock_date($start_date);
+        if (!$start) {
             return array();
         }
 
-        try {
-            $end = !empty($end_date) ? new DateTime($end_date) : null;
-        } catch (Exception $e) {
-            $end = null;
+        $fallback_year = intval($start->format('Y'));
+        $end = masterhotel_parse_room_lock_date($end_date, $fallback_year);
+
+        if ($end_date && $end && $end <= $start && !masterhotel_room_lock_date_has_year($end_date)) {
+            $end->modify('+1 year');
         }
 
         if (!$end || $end <= $start) {
