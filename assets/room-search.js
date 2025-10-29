@@ -388,6 +388,10 @@ jQuery(document).ready(function ($) {
             return;
         }
 
+        if (!btn.data('original-text')) {
+            btn.data('original-text', btn.text());
+        }
+
         btn.prop('disabled', true).text(MESSAGES.ADDING);
 
         const items = [];
@@ -420,20 +424,37 @@ jQuery(document).ready(function ($) {
                 nonce: window.hotelRoomSearchVars.nonce
             }, searchParams),
             success: function(res) {
-                const isSuccess = res.success || (typeof res.added !== 'undefined' && res.added > 0);
-                const cartUrl = (res.data && res.data.cart_url) ? res.data.cart_url : res.cart_url || '';
-                
-                if (isSuccess) {
+                if (typeof res === 'string') {
+                    try {
+                        res = JSON.parse(res);
+                    } catch (e) {
+                        res = { success: false };
+                    }
+                }
+
+                const responseData = res && res.data ? res.data : {};
+                const isSuccess = !!(res && res.success);
+                const cartUrl = responseData.cart_url || res.cart_url || '';
+                const addedCount = typeof responseData.added !== 'undefined' ? responseData.added : res.added;
+
+                if (isSuccess || (typeof addedCount !== 'undefined' && addedCount > 0)) {
                     btn.text(MESSAGES.ADDED).prop('disabled', false);
                     if (cartUrl) {
                         window.location.href = cartUrl;
                     }
                 } else {
-                    btn.text(MESSAGES.ERROR_CART).prop('disabled', false);
+                    const errorMessage = (responseData && responseData.message) ? responseData.message : (res && res.message ? res.message : MESSAGES.ERROR_CART);
+                    btn.text(btn.data('original-text') || MESSAGES.ERROR_CART).prop('disabled', false);
+                    const errorMsg = $(`<div class="combo-error-message" style="color:red; margin-bottom:8px;">${errorMessage}</div>`);
+                    $comboOption.find('.combo-error-message').remove();
+                    btn.closest('.room-actions').before(errorMsg);
                 }
             },
             error: function() {
-                btn.text(MESSAGES.ERROR_CART).prop('disabled', false);
+                btn.text(btn.data('original-text') || MESSAGES.ERROR_CART).prop('disabled', false);
+                const errorMsg = $(`<div class="combo-error-message" style="color:red; margin-bottom:8px;">${MESSAGES.ERROR_CART}</div>`);
+                $comboOption.find('.combo-error-message').remove();
+                btn.closest('.room-actions').before(errorMsg);
             }
         });
     });
