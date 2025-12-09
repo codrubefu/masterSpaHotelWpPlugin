@@ -199,7 +199,10 @@ class HotelRoomSearcher {
             // Enhance combinations with product data
             $enhanced_combinations = array();
             foreach ($combinations_data as $combo) {
-                $enhanced_combinations[] = $this->enhance_combinations_with_products([$combo])[0];
+                $combo = $this->enhance_combinations_with_products([$combo])[0];
+                if($combo){
+                  $enhanced_combinations[] = $combo;
+                }
             }
 
             wp_send_json_success(array(
