@@ -35,3 +35,25 @@
 .woocommerce-checkout-review-order-table {
 	display:none !important;
 }
+
+
+@media (max-width: 700px) {
+
+  .select-holtes a {
+    width: 100%;
+    max-width: 100%;
+    display: block;
+    margin: 0 0 12px 0;
+  }
+
+  #customer_details .col-1,
+  #customer_details .col-2 {
+    width: 100% !important;
+    float: none !important; 
+    margin-right: 0 !important;
+  }
+
+  .woocommerce-billing-fields__field-wrapper .form-row {
+    width: 100% !important;
+  }
+}

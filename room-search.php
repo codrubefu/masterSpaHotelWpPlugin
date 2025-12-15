@@ -88,12 +88,12 @@ class HotelRoomSearcher {
                 <div class="search-row">
                     <div class="search-field">
                         <label for="start_date">Data check-in:</label>
-                        <input type="date" value="<?php echo esc_attr(date('Y-m-d')); ?>" name="start_date" id="start_date" required>
+                        <input type="date" value="" name="start_date" id="start_date" required>
                     </div>
                     
                     <div class="search-field">
                         <label for="end_date">Data check-out:</label>
-                        <input type="date" value="<?php echo esc_attr(date('Y-m-d', strtotime('+1 day'))); ?>" name="end_date" id="end_date" required>
+                        <input type="date" value="" name="end_date" id="end_date" required>
                     </div>
                 </div>
                 
