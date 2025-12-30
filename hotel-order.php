@@ -105,9 +105,16 @@ add_action('wp_ajax_nopriv_masterhotel_add_multiple_to_cart', 'masterhotel_add_m
 
 function redirect_cart_to_checkout() {
     if ( function_exists('is_cart') && is_cart() ) {
-        if ( function_exists('wc_get_checkout_url') ) {
-            wp_redirect( wc_get_checkout_url() );
-            exit;
+        if ( function_exists('WC') && WC()->cart ) {
+            foreach (WC()->cart->get_cart() as $cart_item) {
+                $product_id = $cart_item['product_id'];
+                if (has_term('room', 'product_tag', $product_id)) {
+                    if ( function_exists('wc_get_checkout_url') ) {
+                        wp_redirect( wc_get_checkout_url() );
+                        exit;
+                    }
+                }
+            }
         }
     }
 }

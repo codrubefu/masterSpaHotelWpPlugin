@@ -432,6 +432,20 @@ class HotelRoomsImporter {
             $this->set_room_category($product_id, $room_data['tiplung']);
         }
 
+        // Add 'room' product tag
+        $room_tag = get_term_by('name', 'room', 'product_tag');
+        if (!$room_tag) {
+            $room_tag_result = wp_insert_term('room', 'product_tag');
+            if (!is_wp_error($room_tag_result)) {
+                $room_tag_id = $room_tag_result['term_id'];
+            }
+        } else {
+            $room_tag_id = $room_tag->term_id;
+        }
+        if (isset($room_tag_id)) {
+            wp_set_post_terms($product_id, array($room_tag_id), 'product_tag', true);
+        }
+
         // Set product attributes
         $this->set_room_attributes($product_id, $room_data);
 
@@ -554,20 +568,43 @@ class HotelRoomsImporter {
      * Set room category based on room type
      */
     private function set_room_category($product_id, $room_type) {
-        // Create or get category
-        $category = get_term_by('name', $room_type, 'product_cat');
-        
-        if (!$category) {
-            $category_result = wp_insert_term($room_type, 'product_cat');
-            if (!is_wp_error($category_result)) {
-                $category_id = $category_result['term_id'];
+        // Always assign to 'Hotel' category and room type category as child
+        $category_ids = array();
+
+        // Create or get 'Hotel' category
+        $hotel_category = get_term_by('name', 'Hotel', 'product_cat');
+        if (!$hotel_category) {
+            $hotel_category_result = wp_insert_term('Hotel', 'product_cat');
+            if (!is_wp_error($hotel_category_result)) {
+                $hotel_category_id = $hotel_category_result['term_id'];
             }
         } else {
-            $category_id = $category->term_id;
+            $hotel_category_id = $hotel_category->term_id;
         }
-        
-        if (isset($category_id)) {
-            wp_set_post_terms($product_id, array($category_id), 'product_cat');
+        if (isset($hotel_category_id)) {
+            $category_ids[] = $hotel_category_id;
+        }
+
+        // Create or get room type category as child of Hotel
+        $room_category = get_term_by('name', $room_type, 'product_cat');
+        if (!$room_category) {
+            $room_category_result = wp_insert_term($room_type, 'product_cat', array('parent' => $hotel_category_id));
+            if (!is_wp_error($room_category_result)) {
+                $room_category_id = $room_category_result['term_id'];
+            }
+        } else {
+            $room_category_id = $room_category->term_id;
+            // If not already child of Hotel, update parent
+            if ($room_category->parent != $hotel_category_id) {
+                wp_update_term($room_category_id, 'product_cat', array('parent' => $hotel_category_id));
+            }
+        }
+        if (isset($room_category_id)) {
+            $category_ids[] = $room_category_id;
+        }
+
+        if (!empty($category_ids)) {
+            wp_set_post_terms($product_id, $category_ids, 'product_cat');
         }
     }
     
