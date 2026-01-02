@@ -15,6 +15,7 @@ add_action('woocommerce_order_status_processing', function($order_id) {
 			break;
 		}
 	}
+	
 	if ( ! $has_room ) {
 		return;
 	}

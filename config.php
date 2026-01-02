@@ -56,7 +56,7 @@ class MasterHotelConfig {
     public function add_admin_menu() {
         add_options_page(
             'MasterHotel Settings',
-            'MasterHotel',
+            'MasterHotel Settings',
             'manage_options',
             'masterhotel-config',
             array($this, 'admin_page')
