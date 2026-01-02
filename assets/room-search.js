@@ -29,6 +29,40 @@ jQuery(document).ready(function ($) {
     const $resetBtn = $('.reset-btn');
     const $formFields = $form.find('input, select, button:not(.reset-btn)');
 
+        // Inject CSS for combo breakdown to match the radio area
+        $('head').append(`<style>
+        .combo-total-breakdown{
+            border:1px solid #e6e6e6;
+            padding:10px 12px;
+            margin-bottom:8px;
+            background:#fff;
+            border-radius:4px;
+            box-shadow:0 1px 0 rgba(0,0,0,0.02);
+        }
+        .combo-total-breakdown .combo-room-line{
+            font-size:0.95em;
+            padding:4px 0;
+            justify-content:space-between;
+            gap:12px;
+            align-items:center;
+        }
+        .combo-total-breakdown .combo-room-line strong{font-weight:600}
+        .combo-total-breakdown .combo-room-unitprice,
+        .combo-total-breakdown .combo-room-subtotal{
+            font-weight:600;
+            color:#222;
+            white-space:nowrap;
+        }
+        .combo-total-breakdown .combo-total-line{
+            margin-top:8px;
+            text-align:left;
+        }
+        @media (max-width:600px){
+            .combo-total-breakdown .combo-room-line{flex-direction:column;align-items:flex-start}
+            .combo-total-breakdown .combo-total-line{text-align:left}
+        }
+        </style>`);
+
     // --- Form State Management ---
     function disableForm() {
         $formFields.prop('disabled', true);
@@ -77,7 +111,73 @@ jQuery(document).ready(function ($) {
     $(document).on('change', '.room-variation-radio', function() {
         const $input = $(this);
         $input.closest('.room-info').find('.room-price').text(`Preț: ${$input.data('price')} lei`);
+        // Recalculate combo breakdown if present
+        const $combo = $input.closest('.combo-option');
+        if ($combo.length) {
+            // compute nights
+            let nights = 1;
+            try {
+                const sd = new Date($startDate.val());
+                const ed = new Date($endDate.val());
+                if ($startDate.val() && $endDate.val()) {
+                    const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
+                    nights = diff > 0 ? diff : 1;
+                }
+            } catch (e) { nights = 1; }
+
+            let totalAll = 0;
+            $combo.find('.room-details').each(function(idx, el){
+                const $room = $(el);
+                const $sel = $room.find('.room-variation-radio:checked');
+                let unit = 0;
+                if ($sel.length) unit = parseFloat($sel.data('price')) || 0;
+                else {
+                    // fallback read from .room-price text
+                    const txt = $room.find('.room-price').text().replace(/[^0-9.,-]/g,'').replace(',', '.');
+                    unit = parseFloat(txt) || 0;
+                }
+                const subtotal = unit * nights;
+                totalAll += subtotal;
+                $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(unit);
+                $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(subtotal);
+            });
+            $combo.find('.combo-total-price').text(totalAll);
+        }
     });
+
+    // Recalculate breakdowns by reading unit price from rendered `.room-price` elements
+    function recalcAllComboBreakdowns(root) {
+        root = root || document;
+        $(root).find('.combo-option').each(function(){
+            const $combo = $(this);
+            // compute nights
+            let nights = 1;
+            try {
+                const sd = new Date($startDate.val());
+                const ed = new Date($endDate.val());
+                if ($startDate.val() && $endDate.val()) {
+                    const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
+                    nights = diff > 0 ? diff : 1;
+                }
+            } catch (e) { nights = 1; }
+
+            let totalAll = 0;
+            $combo.find('.room-details').each(function(idx, el){
+                const $room = $(el);
+                // read unit price from .room-price text (e.g. 'Preț: 120 lei')
+                let txt = $room.find('.room-price').text() || '';
+                // extract first number
+                const m = txt.replace(/,/g, '.').match(/([0-9]+(?:\.[0-9]+)?)/);
+                let unit = 0;
+                if (m && m[1]) unit = parseFloat(m[1]) || 0;
+                const subtotal = unit * nights;
+                totalAll += subtotal;
+                $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(unit);
+                $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(subtotal);
+            });
+            $combo.find('.combo-total-price').text(totalAll);
+        });
+    }
 
     // --- Search Form Submission ---
     $form.on('submit', function (e) {
@@ -173,6 +273,8 @@ jQuery(document).ready(function ($) {
             }
 
             const productIds = [];
+            const productPrices = []; // collect price for each room in the combo
+            const productNames = []; // collect room names for breakdown
             let comboHtml = `<div class="combo-option" data-room-type="${type}">`;
             
             $.each(firstCombo, function (roomIndex, room) {
@@ -240,7 +342,47 @@ jQuery(document).ready(function ($) {
                 if (room.product_id) {
                     productIds.push(room.product_id);
                 }
+                // collect display name for this room (from typeName)
+                productNames.push(room.typeName || ('Camera ' + (roomIndex+1)));
+
+                // determine a representative price for this room (use first variation price or product_price)
+                var priceVal = 0;
+                if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
+                    priceVal = parseFloat(room.variations[0].price) || 0;
+                } else if (room.product_price) {
+                    priceVal = parseFloat(room.product_price) || 0;
+                }
+                productPrices.push(priceVal);
             });
+
+            // calculate nights from selected dates
+            var nights = 1;
+            try {
+                var sd = new Date($startDate.val());
+                var ed = new Date($endDate.val());
+                if ($startDate.val() && $endDate.val()) {
+                    var diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
+                    nights = diff > 0 ? diff : 1;
+                }
+            } catch (e) {
+                nights = 1;
+            }
+
+            // build per-room breakdown and total (nights * price per room)
+                if (productPrices.length > 0) {
+                var breakdownHtml = '<div class="combo-total-breakdown">';
+                var totalAll = 0;
+                for (var pi = 0; pi < productPrices.length; pi++) {
+                    var p = Number(productPrices[pi]) || 0;
+                    var name = productNames[pi] || ('Camera ' + (pi+1));
+                    var subtotal = p * nights;
+                    totalAll += subtotal;
+                    breakdownHtml += '<div class="combo-room-line">' + '<span class="combo-room-name">' + name + ': ' + nights + ' nopti × </span>' + '<span class="combo-room-unitprice" data-room-index="' + pi + '">' + p + '</span>' + ' lei = ' + '<span class="combo-room-subtotal" data-room-index="' + pi + '">' + subtotal + '</span>' + ' lei</div>';
+                }
+                breakdownHtml += '<div class="combo-total-line"><strong>Total: <span class="combo-total-price">' + totalAll + '</span> lei</strong></div>';
+                breakdownHtml += '</div>';
+                comboHtml += breakdownHtml;
+            }
 
             if (productIds.length > 0) {
                 comboHtml += `
@@ -256,8 +398,10 @@ jQuery(document).ready(function ($) {
 
         if (append) {
             $searchResults.append(html);
+            recalcAllComboBreakdowns($searchResults[0]);
         } else {
             $searchResults.html(html);
+            recalcAllComboBreakdowns($searchResults[0]);
         }
     }
 

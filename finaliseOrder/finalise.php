@@ -6,6 +6,19 @@ add_action('woocommerce_order_status_processing', function($order_id) {
     $order = wc_get_order($order_id);
     if (!$order) return;
 
+	// Only proceed if any order item is a 'room' product (tag or category)
+	$has_room = false;
+	foreach ( $order->get_items() as $item ) {
+		$product_id = $item->get_product_id();
+		if ( $product_id && has_term( 'room', array( 'product_tag', 'product_cat' ), $product_id ) ) {
+			$has_room = true;
+			break;
+		}
+	}
+	if ( ! $has_room ) {
+		return;
+	}
+
 	// Get webhook URL from config
 	if (!class_exists('MasterHotelConfig')) {
      

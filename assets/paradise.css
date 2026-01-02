@@ -27,9 +27,7 @@
     cursor: pointer;
 }
 
-.woocommerce-cart-form {
-	display:none !important;
-}
+
 
 .woocommerce-checkout #customer_details {
 	width:100% !important;
