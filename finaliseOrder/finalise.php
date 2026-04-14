@@ -49,6 +49,7 @@ add_action('woocommerce_order_status_processing', function($order_id) {
 			}
 		}
 		$item_data['product_meta_input'] = $product_meta;
+		$item_data['name'] = strip_tags($item_data['name']);
 		$order_data['items'][] = $item_data;
 	}
 	$order_data['meta'] = array();
