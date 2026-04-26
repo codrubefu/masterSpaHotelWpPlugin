@@ -28,6 +28,7 @@ jQuery(document).ready(function ($) {
     const $searchBtn = $('.search-btn');
     const $resetBtn = $('.reset-btn');
     const $formFields = $form.find('input, select, button:not(.reset-btn)');
+    let hasAutoSubmittedFromQuery = false;
 
         // Inject CSS for combo breakdown to match the radio area
         $('head').append(`<style>
@@ -105,6 +106,31 @@ jQuery(document).ready(function ($) {
             $endDate.val(minEndDate);
         }
     });
+
+    function applyQueryParamsToSearchForm() {
+        const params = new URLSearchParams(window.location.search);
+        const startDate = params.get('start_date');
+        const endDate = params.get('end_date');
+        const adults = params.get('adults');
+        const kids = params.get('kids');
+        const numberOfRooms = params.get('number_of_rooms');
+
+        if (!startDate || !endDate || !adults || !numberOfRooms) {
+            return false;
+        }
+
+        $startDate.val(startDate).trigger('change');
+        $endDate.val(endDate);
+        $('#adults').val(adults);
+
+        if (kids !== null) {
+            $('#kids').val(kids);
+        }
+
+        $('#number_of_rooms').val(numberOfRooms);
+
+        return true;
+    }
 
     function initReservationFilter() {
         const $reservationForm = $('.masterhotel-reservation-filter .cs-form-wrap');
@@ -364,6 +390,11 @@ jQuery(document).ready(function ($) {
             $searchResults.html('<div class="error-message">Căutarea a eșuat. Vă rugăm să încercați din nou.</div>');
         });
     });
+
+    if ($form.length && applyQueryParamsToSearchForm() && !hasAutoSubmittedFromQuery) {
+        hasAutoSubmittedFromQuery = true;
+        $form.trigger('submit');
+    }
 
     // --- Display Search Results ---
     function displayResults(data, append = false) {
