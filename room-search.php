@@ -52,40 +52,13 @@ class HotelRoomSearcher {
      */
     public function enqueue_assets() {
         $plugin_url = plugin_dir_url(__FILE__);
-        $script_dependencies = array('jquery');
-
-        if (defined('LOFTOCEAN_ASSETS_URI')) {
-            $loftocean_assets_uri = constant('LOFTOCEAN_ASSETS_URI');
-            $assets_version = defined('LOFTOCEAN_ASSETS_VERSION') ? constant('LOFTOCEAN_ASSETS_VERSION') : '3.1.1';
-
-            wp_enqueue_style('jquery-daterangepicker', $loftocean_assets_uri . 'libs/daterangepicker/daterangepicker.min.css', array(), '3.1.1');
-            wp_enqueue_script('moment', $loftocean_assets_uri . 'libs/daterangepicker/moment.min.js', array(), '2.18.1', true);
-            wp_enqueue_script('jquery-daterangepicker', $loftocean_assets_uri . 'libs/daterangepicker/daterangepicker.min.js', array('jquery', 'moment'), $assets_version, true);
-
-            $script_dependencies[] = 'jquery-daterangepicker';
-        }
-
         wp_enqueue_style('master-hotel-room-search', $plugin_url . 'assets/room-search.css', array(), '1.0');
          wp_enqueue_style('master-hotel-room-search-paradise', $plugin_url . 'assets/paradise.css', array(), '1.0');
-        wp_enqueue_script('master-hotel-room-search', $plugin_url . 'assets/room-search.js', $script_dependencies, '1.0'.rand(0,11111111), true);
+        wp_enqueue_script('master-hotel-room-search', $plugin_url . 'assets/room-search.js', array('jquery'), '1.0'.rand(0,11111111), true);
         // Localize script for AJAX URL and nonce
         wp_localize_script('master-hotel-room-search', 'hotelRoomSearchVars', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('hotel_search_nonce'),
-            'reservation_labels' => array(
-                'room' => array(
-                    'single' => 'Room',
-                    'plural' => 'Rooms',
-                ),
-                'adult' => array(
-                    'single' => 'Adult',
-                    'plural' => 'Adults',
-                ),
-                'child' => array(
-                    'single' => 'Child',
-                    'plural' => 'Children',
-                ),
-            ),
         ));
     }
     
@@ -100,22 +73,6 @@ class HotelRoomSearcher {
             'show_title' => true,
             'title' => 'Căutare disponibilitate camere hotel'
         ), $atts);
-
-        $reservation_checkin = isset($_GET['checkin']) ? sanitize_text_field(wp_unslash($_GET['checkin'])) : date('Y-m-d');
-        $reservation_checkout = isset($_GET['checkout']) ? sanitize_text_field(wp_unslash($_GET['checkout'])) : date('Y-m-d', strtotime('tomorrow'));
-        $reservation_room_quantity = isset($_GET['room-quantity']) ? absint(wp_unslash($_GET['room-quantity'])) : 1;
-        $reservation_adult_quantity = isset($_GET['adult-quantity']) ? absint(wp_unslash($_GET['adult-quantity'])) : 2;
-        $reservation_child_quantity = isset($_GET['child-quantity']) ? absint(wp_unslash($_GET['child-quantity'])) : 0;
-        $reservation_guest_labels = array(
-            $reservation_adult_quantity . ' ' . ($reservation_adult_quantity === 1 ? 'Adult' : 'Adulti'),
-        );
-
-        if ($reservation_child_quantity > 0) {
-            $reservation_guest_labels[] = $reservation_child_quantity . ' ' . ($reservation_child_quantity === 1 ? 'Copil' : 'Copii');
-        }
-
-        $reservation_guest_text = implode(', ', $reservation_guest_labels);
-        $reservation_room_text = $reservation_room_quantity . ' ' . ($reservation_room_quantity === 1 ? 'Camera' : 'Camere');
         
         // Debug: Log processed attributes
         error_log('Hotel search processed attributes: ' . print_r($atts, true));
@@ -126,7 +83,7 @@ class HotelRoomSearcher {
             <?php if ($atts['show_title']): ?>
                 <h3><?php echo esc_html($atts['title']); ?></h3>
             <?php endif; ?>
-            <!-- 
+            
             <form id="hotel-availability-form">
                 <div class="search-row">
                     <div class="search-field">
@@ -182,99 +139,6 @@ class HotelRoomSearcher {
                     <button type="button" class="reset-btn" style="display: none;">Modifica cautarea</button>
                 </div>
             </form>
-                            -->
-            <div class="masterhotel-reservation-filter-wrapper">
-                <div class="cs-reservation-form style-block cs-form-square inline-label masterhotel-reservation-filter">
-                    <form id="masterhotel-reservation-filter-form" class="cs-form-wrap" data-date-format="YYYY-MM-DD" action="<?php echo esc_url(home_url('/rezerva-o-camera/')); ?>" method="GET">
-                        <div class="cs-form-field cs-check-in">
-                            <div class="field-wrap">
-                                <label class="cs-form-label">Check In</label>
-
-                                <div class="field-input-wrap checkin-date">
-                                    <input type="text" class="date-range-picker" value="<?php echo esc_attr($reservation_checkin); ?> - <?php echo esc_attr($reservation_checkout); ?>">
-                                    <input type="text" value="<?php echo esc_attr($reservation_checkin); ?>" name="checkin" readonly>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="cs-form-field cs-check-out">
-                            <div class="field-wrap">
-                                <label class="cs-form-label">Check Out</label>
-
-                                <div class="field-input-wrap checkout-date">
-                                    <input type="text" value="<?php echo esc_attr($reservation_checkout); ?>" name="checkout" readonly>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="cs-form-field cs-rooms cs-has-dropdown">
-                            <div class="field-wrap">
-                                <label class="cs-form-label">Rooms</label>
-
-                                <div class="field-input-wrap has-dropdown">
-                                    <input type="text" name="rooms" value="<?php echo esc_attr($reservation_room_text); ?>" readonly>
-                                </div>
-
-                                <div class="csf-dropdown">
-                                    <div class="csf-dropdown-item">
-                                        <label class="cs-form-label">Rooms</label>
-
-                                        <div class="quantity cs-quantity" data-label="room">
-                                            <label class="screen-reader-text">Rooms quantity</label>
-                                            <button class="minus"></button>
-                                            <input type="text" name="room-quantity" value="<?php echo esc_attr($reservation_room_quantity); ?>" class="input-text" autocomplete="off" readonly data-min="1" data-max="50">
-                                            <button class="plus"></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="cs-form-field cs-guests cs-has-dropdown">
-                            <div class="field-wrap">
-                                <label class="cs-form-label">Guests</label>
-
-                                <div class="field-input-wrap has-dropdown">
-                                    <input type="text" name="guests" value="<?php echo esc_attr($reservation_guest_text); ?>" readonly>
-                                </div>
-
-                                <div class="csf-dropdown">
-                                    <div class="csf-dropdown-item">
-                                        <label class="cs-form-label">Adults</label>
-
-                                        <div class="quantity cs-quantity" data-label="adult">
-                                            <label class="screen-reader-text">Adults quantity</label>
-                                            <button class="minus"></button>
-                                            <input type="text" name="adult-quantity" value="<?php echo esc_attr($reservation_adult_quantity); ?>" class="input-text" autocomplete="off" readonly data-min="1" data-max="50">
-                                            <button class="plus"></button>
-                                        </div>
-                                    </div>
-
-                                    <div class="csf-dropdown-item">
-                                        <label class="cs-form-label">Children</label>
-
-                                        <div class="quantity cs-quantity" data-label="child">
-                                            <label class="screen-reader-text">Children quantity</label>
-                                            <button class="minus"></button>
-                                            <input type="text" name="child-quantity" value="<?php echo esc_attr($reservation_child_quantity); ?>" class="input-text" autocomplete="off" readonly data-min="0" data-max="50">
-                                            <button class="plus"></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="cs-form-field cs-submit">
-                            <div class="field-wrap">
-                                <button type="submit" class="button"><span class="btn-text">Check Availability</span></button>
-                            </div>
-                        </div>
-                        <input type="hidden" name="search_rooms" value="" />
-                    </form>
-                </div>
-            </div>
-
-            
             
             <div id="search-loading" style="display: none;">
                 <p>Se caută camere disponibile...</p>
