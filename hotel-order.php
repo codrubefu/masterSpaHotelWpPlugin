@@ -120,3 +120,33 @@ function redirect_cart_to_checkout() {
 }
 add_action( 'template_redirect', 'redirect_cart_to_checkout' );
 
+function masterhotel_redirect_room_search_query() {
+    $search_params = array(
+        'room-quantity',
+        'adult-quantity',
+        'child-quantity',
+        'search_rooms',
+        'checkin',
+        'checkout',
+    );
+
+    $has_search_param = false;
+
+    foreach ( $search_params as $search_param ) {
+        if ( array_key_exists( $search_param, $_GET ) ) {
+            $has_search_param = true;
+            break;
+        }
+    }
+
+    if ( ! $has_search_param || is_admin() || wp_doing_ajax() || is_page( 'rezerva-o-camera' ) ) {
+        return;
+    }
+
+    $target_url = add_query_arg( wp_unslash( $_GET ), home_url( '/rezerva-o-camera/' ) );
+
+    wp_safe_redirect( $target_url );
+    exit;
+}
+add_action( 'template_redirect', 'masterhotel_redirect_room_search_query' );
+
