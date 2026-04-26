@@ -106,6 +106,138 @@ jQuery(document).ready(function ($) {
         }
     });
 
+    function initReservationFilter() {
+        const $reservationForm = $('.masterhotel-reservation-filter .cs-form-wrap');
+        const labels = window.hotelRoomSearchVars.reservation_labels || {};
+
+        if (!$reservationForm.length) {
+            return;
+        }
+
+        function getLabel(labelKey, value) {
+            const labelSet = labels[labelKey] || {};
+            return value === 1 ? (labelSet.single || '') : (labelSet.plural || '');
+        }
+
+        function setHiddenValue($form, name, value) {
+            let $input = $form.find(`input[type="hidden"][name="${name}"]`);
+
+            if (!$input.length) {
+                $input = $('<input>', { type: 'hidden', name }).appendTo($form);
+            }
+
+            $input.val(value);
+        }
+
+        function syncReservationSummary($form) {
+            const roomCount = parseInt($form.find('input[name="room-quantity"]').val(), 10) || 1;
+            const adultCount = parseInt($form.find('input[name="adult-quantity"]').val(), 10) || 1;
+            const childCount = parseInt($form.find('input[name="child-quantity"]').val(), 10) || 0;
+            const guestParts = [`${adultCount} ${getLabel('adult', adultCount)}`];
+
+            if (childCount > 0) {
+                guestParts.push(`${childCount} ${getLabel('child', childCount)}`);
+            }
+
+            $form.find('.cs-rooms .field-input-wrap input[name="rooms"]').val(`${roomCount} ${getLabel('room', roomCount)}`);
+            $form.find('.cs-guests .field-input-wrap input[name="guests"]').val(guestParts.join(', '));
+
+            setHiddenValue($form, 'room_quantity_label', `${roomCount} ${getLabel('room', roomCount)}`);
+            setHiddenValue($form, 'adult_quantity_label', `${adultCount} ${getLabel('adult', adultCount)}`);
+            setHiddenValue($form, 'child_quantity_label', `${childCount} ${getLabel('child', childCount)}`);
+            setHiddenValue($form, 'adults', adultCount);
+            setHiddenValue($form, 'children', childCount);
+        }
+
+        function updateQuantity($button, delta) {
+            const $quantity = $button.closest('.cs-quantity');
+            const $input = $quantity.find('input').first();
+            const min = parseInt($input.data('min'), 10);
+            const max = parseInt($input.data('max'), 10);
+            const current = parseInt($input.val(), 10) || 0;
+            let nextValue = current + delta;
+
+            if (!Number.isNaN(min)) {
+                nextValue = Math.max(min, nextValue);
+            }
+
+            if (!Number.isNaN(max)) {
+                nextValue = Math.min(max, nextValue);
+            }
+
+            $input.val(nextValue);
+            syncReservationSummary($button.closest('form'));
+        }
+
+        syncReservationSummary($reservationForm);
+
+        $(document).on('click', function (event) {
+            if (!$(event.target).closest('.masterhotel-reservation-filter').length) {
+                $('.masterhotel-reservation-filter .csf-dropdown').removeClass('is-open');
+            }
+        });
+
+        $reservationForm
+            .on('click', '.has-dropdown', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const $dropdown = $(this).siblings('.csf-dropdown');
+                $('.masterhotel-reservation-filter .csf-dropdown').not($dropdown).removeClass('is-open');
+                $dropdown.toggleClass('is-open');
+            })
+            .on('click', '.minus', function (event) {
+                event.preventDefault();
+                updateQuantity($(this), -1);
+            })
+            .on('click', '.plus', function (event) {
+                event.preventDefault();
+                updateQuantity($(this), 1);
+            })
+            .on('submit', function () {
+                syncReservationSummary($(this));
+            });
+
+        if ($.fn.daterangepicker) {
+            const dateFormat = $reservationForm.data('date-format') || 'YYYY-MM-DD';
+            const $checkinDate = $reservationForm.find('.checkin-date input[name="checkin"]');
+            const $checkoutDate = $reservationForm.find('.checkout-date input[name="checkout"]');
+            const $dateRangePicker = $reservationForm.find('.date-range-picker');
+
+            if ($dateRangePicker.length && $checkinDate.length && $checkoutDate.length) {
+                $dateRangePicker.daterangepicker({
+                    minDate: moment().format(dateFormat),
+                    startDate: $checkinDate.val(),
+                    endDate: $checkoutDate.val(),
+                    locale: { format: dateFormat },
+                    autoApply: true,
+                }).on('apply.daterangepicker', function (event, picker) {
+                    const startDate = picker.startDate.format(dateFormat);
+                    const endDate = picker.endDate.format(dateFormat);
+
+                    $(this).val(`${startDate} - ${endDate}`);
+                    $checkinDate.val(startDate);
+                    $checkoutDate.val(endDate);
+                });
+
+                $reservationForm.find('.checkin-date, .checkout-date').on('click', function (event) {
+                    event.preventDefault();
+                    const picker = $dateRangePicker.data('daterangepicker');
+
+                    if (!picker) {
+                        return;
+                    }
+
+                    picker.setStartDate($checkinDate.val());
+                    picker.setEndDate($checkoutDate.val());
+                    picker.show();
+                });
+            }
+        }
+    }
+
+    initReservationFilter();
+
     // --- Room Variation Price Update ---
     // Event listener for when a different room variation is selected.
     $(document).on('change', '.room-variation-radio', function() {

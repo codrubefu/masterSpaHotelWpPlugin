@@ -7,6 +7,20 @@
     background: #f9f9f9;
 }
 
+.masterhotel-reservation-filter-wrapper {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #ddd;
+}
+
+.masterhotel-reservation-filter .cs-form-wrap {
+    position: relative;
+}
+
+.masterhotel-reservation-filter .button {
+    width: 100%;
+}
+
 .search-row {
     display: flex;
     gap: 15px;
