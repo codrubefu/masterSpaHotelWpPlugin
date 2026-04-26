@@ -143,7 +143,15 @@ function masterhotel_redirect_room_search_query() {
         return;
     }
 
-    $target_url = add_query_arg( wp_unslash( $_GET ), home_url( '/rezerva-o-camera/' ) );
+    $redirect_query = array(
+        'start_date'      => isset( $_GET['checkin'] ) ? sanitize_text_field( wp_unslash( $_GET['checkin'] ) ) : '',
+        'end_date'        => isset( $_GET['checkout'] ) ? sanitize_text_field( wp_unslash( $_GET['checkout'] ) ) : '',
+        'adults'          => isset( $_GET['adult-quantity'] ) ? absint( wp_unslash( $_GET['adult-quantity'] ) ) : 0,
+        'kids'            => isset( $_GET['child-quantity'] ) ? absint( wp_unslash( $_GET['child-quantity'] ) ) : 0,
+        'number_of_rooms' => isset( $_GET['room-quantity'] ) ? absint( wp_unslash( $_GET['room-quantity'] ) ) : 0,
+    );
+
+    $target_url = add_query_arg( $redirect_query, home_url( '/rezerva-o-camera/' ) );
 
     wp_safe_redirect( $target_url );
     exit;
