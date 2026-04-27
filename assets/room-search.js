@@ -365,7 +365,19 @@ jQuery(document).ready(function ($) {
                         nightly = nights > 0 ? (roomTotal / nights) : 0;
                         segments = plan.segments;
                         $room.attr('data-selected-plan', encodeURIComponent(JSON.stringify(segments)));
-                        if (segments.length && plan.primaryVariationId) {
+                        const segmentNightsMap = {};
+                        segments.forEach((segment) => {
+                            const key = String(segment.variation_id);
+                            segmentNightsMap[key] = (segmentNightsMap[key] || 0) + (parseInt(segment.nights, 10) || 0);
+                        });
+                        $room.find('.room-variation-radio').each(function() {
+                            const $option = $(this);
+                            const variationId = String($option.val());
+                            const selectedNights = segmentNightsMap[variationId] || 0;
+                            $option.prop('checked', selectedNights > 0);
+                            $option.attr('data-plan-nights', selectedNights);
+                        });
+                        if (!segments.length && plan.primaryVariationId) {
                             $room.find('.room-variation-radio[value="' + plan.primaryVariationId + '"]').prop('checked', true);
                         }
                     } catch (e) {
@@ -374,11 +386,29 @@ jQuery(document).ready(function ($) {
                 }
 
                 if (!roomTotal) {
-                    const $sel = $room.find('.room-variation-radio:checked');
-                    if ($sel.length) nightly = parseFloat($sel.data('price')) || 0;
+                    const $selected = $room.find('.room-variation-radio:checked');
+                    if ($selected.length) {
+                        nightly = 0;
+                        $selected.each(function() {
+                            nightly += parseFloat($(this).data('price')) || 0;
+                        });
+                        nightly = nightly / $selected.length;
+                    }
                     roomTotal = nightly * nights;
-                    if ($sel.length) {
-                        segments = [{ variation_id: parseInt($sel.val(), 10), nights, price: nightly }];
+                    if ($selected.length) {
+                        const splitNights = Math.max(1, Math.floor(nights / $selected.length));
+                        let allocated = 0;
+                        $selected.each(function(selIdx) {
+                            const $option = $(this);
+                            const optionNights = (selIdx === $selected.length - 1) ? (nights - allocated) : splitNights;
+                            allocated += optionNights;
+                            segments.push({
+                                variation_id: parseInt($option.val(), 10),
+                                nights: optionNights,
+                                price: parseFloat($option.data('price')) || 0
+                            });
+                            $option.attr('data-plan-nights', optionNights);
+                        });
                         $room.attr('data-selected-plan', encodeURIComponent(JSON.stringify(segments)));
                     }
                 }
@@ -554,10 +584,10 @@ jQuery(document).ready(function ($) {
                     $.each(visibleVariations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
-                        const shouldCheckByPlan = targetPrimaryVariationId !== null && targetPrimaryVariationId === parseInt(variation.variation_id, 10);
-                        const checkedAttr = (shouldCheckByPlan || (targetPrimaryVariationId === null && firstVisible)) ? 'checked="checked"' : '';
                         const selectedNightsForVariation = nightsByVariationId[String(variation.variation_id)] || 0;
-                        if (checkedAttr) {
+                        const shouldCheckByPlan = selectedNightsForVariation > 0;
+                        const checkedAttr = (shouldCheckByPlan || (targetPrimaryVariationId === null && firstVisible)) ? 'checked="checked"' : '';
+                        if (checkedAttr && targetPrimaryVariationId === null) {
                             firstVisible = false;
                         }
                         
@@ -567,9 +597,9 @@ jQuery(document).ready(function ($) {
                         comboHtml += `
                             <li>
                                 <label style="margin-right:10px;">
-                                    <input type="radio" name="room-variation-${comboId}-${roomIndex}" class="room-variation-radio room-variation-select" 
+                                    <input type="checkbox" name="room-variation-${comboId}-${roomIndex}[]" class="room-variation-radio room-variation-select" 
                                     value="${variation.variation_id}" data-price="${variation.price}" data-image="${variation.image || ''}" 
-                                    data-adultMax="${adultMax}" data-childMax="${childMax}" ${checkedAttr}>
+                                    data-adultMax="${adultMax}" data-childMax="${childMax}" data-plan-nights="${selectedNightsForVariation}" ${checkedAttr}>
                                     ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}${selectedNightsForVariation > 0 ? ` <strong>(selectată ${selectedNightsForVariation} nopți)</strong>` : ''}
                                 </label>
                                 ${variation.description ? `<div class="room-variation-description">${variation.description}</div>` : ''}
@@ -766,8 +796,12 @@ jQuery(document).ready(function ($) {
         $comboOption.find('.room-details').each(function(idx, el) {
             const $roomDetails = $(el);
             const $variationSelect = $roomDetails.find('.room-variation-radio:checked');
-            const adultMax = $variationSelect.length ? parseInt($variationSelect.attr('data-adultMax')) || 0 : 0;
-            const childMax = $variationSelect.length ? parseInt($variationSelect.attr('data-childMax')) || 0 : 0;
+            let adultMax = 0;
+            let childMax = 0;
+            $variationSelect.each(function() {
+                adultMax = Math.max(adultMax, parseInt($(this).attr('data-adultMax')) || 0);
+                childMax = Math.max(childMax, parseInt($(this).attr('data-childMax')) || 0);
+            });
             totalAdults += adultMax;
             totalKids += childMax;
         });
@@ -786,7 +820,6 @@ jQuery(document).ready(function ($) {
             const $roomDetails = $(el);
             const $variationSelect = $roomDetails.find('.room-variation-radio:checked');
             const productId = productIds[idx];
-            const variationId = $variationSelect.length ? parseInt($variationSelect.val(), 10) : null;
             const selectedPlanEncoded = $roomDetails.attr('data-selected-plan');
             let addedFromPlan = false;
             if (selectedPlanEncoded) {
@@ -807,11 +840,30 @@ jQuery(document).ready(function ($) {
                 } catch (e) {}
             }
             if (!addedFromPlan) {
-                items.push({
-                    product_id: productId,
-                    variation_id: variationId,
-                    quantity: getCurrentNights()
-                });
+                if ($variationSelect.length > 0) {
+                    let allocatedNights = 0;
+                    $variationSelect.each(function(selIdx) {
+                        const $option = $(this);
+                        let optionNights = parseInt($option.attr('data-plan-nights'), 10) || 0;
+                        if (optionNights <= 0) {
+                            const stayNights = getCurrentNights();
+                            const splitNights = Math.max(1, Math.floor(stayNights / $variationSelect.length));
+                            optionNights = (selIdx === $variationSelect.length - 1) ? (stayNights - allocatedNights) : splitNights;
+                        }
+                        allocatedNights += optionNights;
+                        items.push({
+                            product_id: productId,
+                            variation_id: parseInt($option.val(), 10),
+                            quantity: optionNights
+                        });
+                    });
+                } else {
+                    items.push({
+                        product_id: productId,
+                        variation_id: null,
+                        quantity: getCurrentNights()
+                    });
+                }
             }
         });
 
