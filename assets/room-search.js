@@ -396,6 +396,48 @@ jQuery(document).ready(function ($) {
         $form.trigger('submit');
     }
 
+    function parseFlexibleDate(dateString) {
+        if (!dateString) return null;
+        const value = String(dateString).trim();
+        let match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00`);
+
+        match = value.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+        if (match) return new Date(`${match[3]}-${match[2]}-${match[1]}T00:00:00`);
+
+        return null;
+    }
+
+    function getVariationInterval(variation) {
+        const attrsText = variation && variation.attributes ? Object.values(variation.attributes).join(' ') : '';
+        const sourceText = [attrsText, variation && variation.title, variation && variation.description]
+            .filter(Boolean)
+            .join(' ');
+        const dates = sourceText.match(/\d{4}-\d{2}-\d{2}|\d{2}[./-]\d{2}[./-]\d{4}/g) || [];
+
+        if (dates.length < 2) return null;
+        const start = parseFlexibleDate(dates[0]);
+        const end = parseFlexibleDate(dates[1]);
+        if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+
+        return start <= end ? { start, end } : { start: end, end: start };
+    }
+
+    function filterVariationsBySelectedInterval(variations, selectedStart, selectedEnd) {
+        if (!Array.isArray(variations) || !variations.length) return [];
+        if (!selectedStart || !selectedEnd) return variations;
+
+        const stayStart = parseFlexibleDate(selectedStart);
+        const stayEnd = parseFlexibleDate(selectedEnd);
+        if (!stayStart || !stayEnd || isNaN(stayStart.getTime()) || isNaN(stayEnd.getTime())) return variations;
+
+        return variations.filter((variation) => {
+            const interval = getVariationInterval(variation);
+            if (!interval) return true;
+            return stayStart >= interval.start && stayEnd <= interval.end;
+        });
+    }
+
     // --- Display Search Results ---
     function displayResults(data, append = false) {
         if (!data.combinations || Object.keys(data.combinations).length === 0) {
@@ -409,13 +451,6 @@ jQuery(document).ready(function ($) {
             html += '<h3>Combinații de camere disponibile</h3>';
             html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Noblesse</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Royal</a></div>';
         }
-
-        // Get search criteria from form for validation.
-        const totalAdults = parseInt($('#adults').val()) || 0;
-        const totalKids = parseInt($('#kids').val()) || 0;
-        const totalRooms = parseInt($('#number_of_rooms').val()) || 1;
-        const hideSingle = (totalAdults > 0 && totalRooms > 0 && totalAdults % totalRooms === 0);
-        let x = 0; // Counter for radio button names.
 
         // Loop through the combinations and build the HTML.
         $.each(data.combinations, function (roomType, typeData) {
@@ -451,50 +486,39 @@ jQuery(document).ready(function ($) {
                                 <p>${room.description || ''}</p>
                 `;
 
-                // If room has variations, show radio buttons.
-                if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
-                    // Sort variations by price in descending order
-                    const sortedVariations = room.variations.slice().sort((a, b) => {
+                const matchingVariations = filterVariationsBySelectedInterval(room.variations, $startDate.val(), $endDate.val());
+
+                // Variations are date intervals with prices, so show only one matching variation.
+                if (matchingVariations && matchingVariations.length > 0) {
+                    const sortedVariations = matchingVariations.slice().sort((a, b) => {
                         const priceA = parseFloat(a.price) || 0;
                         const priceB = parseFloat(b.price) || 0;
-                        return priceB - priceA; // Descending order
+                        return priceA - priceB; // Ascending order (cheapest first)
                     });
+                    const selectedVariation = sortedVariations[0];
                     
                     comboHtml += `
-                        <label>Alegeți o variantă:</label>
+                        <label>Variantă disponibilă pentru perioada selectată:</label>
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
-                    let firstVisible = true;
+                    const attrs = Object.values(selectedVariation.attributes || {}).join(', ');
+                    const isSingle = attrs.toLowerCase().includes('single') || (selectedVariation.title && selectedVariation.title.toLowerCase().includes('single'));
+                    const adultMax = isSingle ? 1 : room.adultMax;
+                    const childMax = isSingle ? 0 : room.kidMax;
 
-                    $.each(sortedVariations, function(vi, variation) {
-                        const attrs = Object.values(variation.attributes).join(', ');
-                        const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
-                        
-                        if (hideSingle && isSingle) {
-                            return; // Skip rendering 'single' variation if hideSingle is true.
-                        }
-                        
-                        const checkedAttr = firstVisible ? 'checked="checked"' : '';
-                        firstVisible = false;
-                        
-                        const adultMax = isSingle ? 1 : room.adultMax;
-                        const childMax = isSingle ? 0 : room.kidMax;
-                        
-                        comboHtml += `
-                            <li>
-                                <label style="margin-right:10px;">
-                                    <input type="radio" name="room-variation-${roomIndex}" class="room-variation-radio room-variation-select" 
-                                    value="${variation.variation_id}" data-price="${variation.price}" data-image="${variation.image || ''}" 
-                                    data-adultMax="${adultMax}" data-childMax="${childMax}" ${checkedAttr}>
-                                    ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}
-                                </label>
-                                ${variation.description ? `<div class="room-variation-description">${variation.description}</div>` : ''}
-                            </li>
-                        `;
-                        x++;
-                    });
+                    comboHtml += `
+                        <li>
+                            <label style="margin-right:10px;">
+                                <input type="radio" name="room-variation-${roomIndex}" class="room-variation-radio room-variation-select" 
+                                value="${selectedVariation.variation_id}" data-price="${selectedVariation.price}" data-image="${selectedVariation.image || ''}" 
+                                data-adultMax="${adultMax}" data-childMax="${childMax}" checked="checked" style="display:none;">
+                                ${attrs} - ${selectedVariation.price} lei${selectedVariation.in_stock ? '' : ' (Stoc epuizat)'}
+                            </label>
+                            ${selectedVariation.description ? `<div class="room-variation-description">${selectedVariation.description}</div>` : ''}
+                        </li>
+                    `;
                     comboHtml += '</ul></div>';
-                    comboHtml += `<span class="room-price">Preț: ${room.variations[0].price} lei</span>`;
+                    comboHtml += `<span class="room-price">Preț: ${selectedVariation.price} lei</span>`;
                 } else if (room.product_price) {
                     comboHtml += `<span class="room-price">Preț: ${room.product_price} lei</span>`;
                 }
@@ -511,7 +535,10 @@ jQuery(document).ready(function ($) {
 
                 // determine a representative price for this room (use first variation price or product_price)
                 var priceVal = 0;
-                if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
+                if (matchingVariations && matchingVariations.length > 0) {
+                    const cheapestMatching = matchingVariations.slice().sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0))[0];
+                    priceVal = parseFloat(cheapestMatching.price) || 0;
+                } else if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
                     priceVal = parseFloat(room.variations[0].price) || 0;
                 } else if (room.product_price) {
                     priceVal = parseFloat(room.product_price) || 0;
