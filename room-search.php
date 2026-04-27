@@ -322,11 +322,20 @@ class HotelRoomSearcher {
                                 $variations = $product_obj->get_available_variations();
                                 $room['variations'] = array();
                                 foreach ($variations as $variation) {
+                                    $variation_meta_info = get_post_meta($variation['variation_id'], 'meta_info', true);
+                                    $variation_data_start = '';
+                                    $variation_data_end = '';
+                                    if (is_array($variation_meta_info)) {
+                                        $variation_data_start = isset($variation_meta_info['data_start']) ? sanitize_text_field($variation_meta_info['data_start']) : '';
+                                        $variation_data_end = isset($variation_meta_info['data_end']) ? sanitize_text_field($variation_meta_info['data_end']) : '';
+                                    }
                                     $room['variations'][] = array(
                                         'variation_id' => $variation['variation_id'],
                                         'attributes' => $variation['attributes'],
                                         'title' => $variation['variation_description'] ? wp_strip_all_tags($variation['variation_description']) : '',
                                         'description' => $variation['variation_description'] ? wp_kses_post($variation['variation_description']) : '',
+                                        'data_start' => $variation_data_start,
+                                        'data_end' => $variation_data_end,
                                         'price' => $variation['display_price'],
                                         'regular_price' => $variation['display_regular_price'],
                                         'sale_price' => $variation['display_price'] < $variation['display_regular_price'] ? $variation['display_price'] : '',

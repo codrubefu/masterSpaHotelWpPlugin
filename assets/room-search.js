@@ -264,43 +264,81 @@ jQuery(document).ready(function ($) {
 
     initReservationFilter();
 
+    function getCurrentNights() {
+        let nights = 1;
+        try {
+            const sd = new Date($startDate.val());
+            const ed = new Date($endDate.val());
+            if ($startDate.val() && $endDate.val()) {
+                const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
+                nights = diff > 0 ? diff : 1;
+            }
+        } catch (e) { nights = 1; }
+        return nights;
+    }
+
+    function parseMonthDayToDate(md, baseYear) {
+        if (!md || typeof md !== 'string') return null;
+        const parts = md.split('-');
+        if (parts.length !== 2) return null;
+        const month = parseInt(parts[0], 10);
+        const day = parseInt(parts[1], 10);
+        if (!month || !day) return null;
+        return new Date(baseYear, month - 1, day);
+    }
+
+    function getVariationPlanForStay(variations, bookingStart, bookingEnd) {
+        const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)));
+        const pricedSegments = [];
+        let coveredNights = 0;
+        let totalPrice = 0;
+        const currentYear = (new Date()).getFullYear();
+
+        const normalized = (variations || []).map(v => {
+            const start = parseMonthDayToDate(v.data_start, currentYear);
+            let end = parseMonthDayToDate(v.data_end, currentYear);
+            if (start && end && end <= start) {
+                end = new Date(currentYear + 1, end.getMonth(), end.getDate());
+            }
+            return Object.assign({}, v, { _start: start, _end: end, _price: parseFloat(v.price) || 0 });
+        }).sort((a, b) => {
+            if (!a._start && !b._start) return a._price - b._price;
+            if (!a._start) return 1;
+            if (!b._start) return -1;
+            return a._start - b._start;
+        });
+
+        normalized.forEach(v => {
+            if (!(v._start && v._end) || v._end <= bookingStart || v._start >= bookingEnd) return;
+            const overlapStart = new Date(Math.max(v._start.getTime(), bookingStart.getTime()));
+            const overlapEnd = new Date(Math.min(v._end.getTime(), bookingEnd.getTime()));
+            const nights = Math.max(0, Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)));
+            if (nights > 0) {
+                pricedSegments.push({ variation_id: v.variation_id, nights, price: v._price });
+                coveredNights += nights;
+                totalPrice += (nights * v._price);
+            }
+        });
+
+        if (coveredNights < totalNights && normalized.length > 0) {
+            const fallback = normalized.slice().sort((a, b) => a._price - b._price)[0];
+            const remainingNights = totalNights - coveredNights;
+            if (fallback && remainingNights > 0) {
+                pricedSegments.push({ variation_id: fallback.variation_id, nights: remainingNights, price: fallback._price });
+                totalPrice += (remainingNights * fallback._price);
+            }
+        }
+
+        const primaryVariationId = pricedSegments.length ? pricedSegments[0].variation_id : null;
+        return { totalPrice, segments: pricedSegments, totalNights, primaryVariationId };
+    }
+
     // --- Room Variation Price Update ---
     // Event listener for when a different room variation is selected.
     $(document).on('change', '.room-variation-radio', function() {
         const $input = $(this);
-        $input.closest('.room-info').find('.room-price').text(`Preț: ${$input.data('price')} lei`);
-        // Recalculate combo breakdown if present
-        const $combo = $input.closest('.combo-option');
-        if ($combo.length) {
-            // compute nights
-            let nights = 1;
-            try {
-                const sd = new Date($startDate.val());
-                const ed = new Date($endDate.val());
-                if ($startDate.val() && $endDate.val()) {
-                    const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
-                    nights = diff > 0 ? diff : 1;
-                }
-            } catch (e) { nights = 1; }
-
-            let totalAll = 0;
-            $combo.find('.room-details').each(function(idx, el){
-                const $room = $(el);
-                const $sel = $room.find('.room-variation-radio:checked');
-                let unit = 0;
-                if ($sel.length) unit = parseFloat($sel.data('price')) || 0;
-                else {
-                    // fallback read from .room-price text
-                    const txt = $room.find('.room-price').text().replace(/[^0-9.,-]/g,'').replace(',', '.');
-                    unit = parseFloat(txt) || 0;
-                }
-                const subtotal = unit * nights;
-                totalAll += subtotal;
-                $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(unit);
-                $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(subtotal);
-            });
-            $combo.find('.combo-total-price').text(totalAll);
-        }
+        $input.closest('.room-info').find('.room-price').text(`Preț/noapte: ${$input.data('price')} lei`);
+        recalcAllComboBreakdowns($input.closest('.combo-option'));
     });
 
     // Recalculate breakdowns by reading unit price from rendered `.room-price` elements
@@ -308,32 +346,50 @@ jQuery(document).ready(function ($) {
         root = root || document;
         $(root).find('.combo-option').each(function(){
             const $combo = $(this);
-            // compute nights
-            let nights = 1;
-            try {
-                const sd = new Date($startDate.val());
-                const ed = new Date($endDate.val());
-                if ($startDate.val() && $endDate.val()) {
-                    const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
-                    nights = diff > 0 ? diff : 1;
-                }
-            } catch (e) { nights = 1; }
-
+            const nights = getCurrentNights();
+            const bookingStart = new Date($startDate.val());
+            const bookingEnd = new Date($endDate.val());
             let totalAll = 0;
             $combo.find('.room-details').each(function(idx, el){
                 const $room = $(el);
-                // read unit price from .room-price text (e.g. 'Preț: 120 lei')
-                let txt = $room.find('.room-price').text() || '';
-                // extract first number
-                const m = txt.replace(/,/g, '.').match(/([0-9]+(?:\.[0-9]+)?)/);
-                let unit = 0;
-                if (m && m[1]) unit = parseFloat(m[1]) || 0;
-                const subtotal = unit * nights;
-                totalAll += subtotal;
-                $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(unit);
-                $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(subtotal);
+                let nightly = 0;
+                let roomTotal = 0;
+                let segments = [];
+                const encodedVariations = $room.attr('data-room-variations');
+                const hasDates = $startDate.val() && $endDate.val() && !isNaN(bookingStart.getTime()) && !isNaN(bookingEnd.getTime());
+
+                if (encodedVariations && hasDates) {
+                    try {
+                        const variations = JSON.parse(decodeURIComponent(encodedVariations));
+                        const plan = getVariationPlanForStay(variations, bookingStart, bookingEnd);
+                        roomTotal = plan.totalPrice;
+                        nightly = nights > 0 ? (roomTotal / nights) : 0;
+                        segments = plan.segments;
+                        $room.attr('data-selected-plan', encodeURIComponent(JSON.stringify(segments)));
+                        if (segments.length && plan.primaryVariationId) {
+                            $room.find('.room-variation-radio[value="' + plan.primaryVariationId + '"]').prop('checked', true);
+                        }
+                    } catch (e) {
+                        segments = [];
+                    }
+                }
+
+                if (!roomTotal) {
+                    const $sel = $room.find('.room-variation-radio:checked');
+                    if ($sel.length) nightly = parseFloat($sel.data('price')) || 0;
+                    roomTotal = nightly * nights;
+                    if ($sel.length) {
+                        segments = [{ variation_id: parseInt($sel.val(), 10), nights, price: nightly }];
+                        $room.attr('data-selected-plan', encodeURIComponent(JSON.stringify(segments)));
+                    }
+                }
+
+                totalAll += roomTotal;
+                $room.find('.room-price').text(`Preț total sejur: ${roomTotal.toFixed(2)} lei`);
+                $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(nightly.toFixed(2));
+                $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(roomTotal.toFixed(2));
             });
-            $combo.find('.combo-total-price').text(totalAll);
+            $combo.find('.combo-total-price').text(totalAll.toFixed(2));
         });
     }
 
@@ -435,15 +491,33 @@ jQuery(document).ready(function ($) {
                 type = 3; // For combinations like '12', '21', etc.
             }
 
-            const productIds = [];
-            const productPrices = []; // collect price for each room in the combo
-            const productNames = []; // collect room names for breakdown
-            let comboHtml = `<div class="combo-option" data-room-type="${type}">`;
+                const productIds = [];
+                const productPrices = []; // collect price for each room in the combo
+                const productNames = []; // collect room names for breakdown
+                let comboHtml = `<div class="combo-option" data-room-type="${type}">`;
             
             $.each(firstCombo, function (roomIndex, room) {
                 const stars = (room.hotel == 1) ? 4 : 3;
+                let sortedVariations = [];
+                let visibleVariations = [];
+                if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
+                    sortedVariations = room.variations.slice().sort((a, b) => {
+                        const priceA = parseFloat(a.price) || 0;
+                        const priceB = parseFloat(b.price) || 0;
+                        return priceB - priceA;
+                    });
+                    visibleVariations = sortedVariations.filter((variation) => {
+                        const attrs = Object.values(variation.attributes || {}).join(', ');
+                        const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
+                        return !(hideSingle && isSingle);
+                    });
+                }
+
+                const roomDetailsAttr = visibleVariations.length
+                    ? ` data-room-variations="${encodeURIComponent(JSON.stringify(visibleVariations))}"`
+                    : '';
                 comboHtml += `
-                    <div class="room-details">
+                    <div class="room-details"${roomDetailsAttr}>
                         <div class="room-info">
                             <div class="room-image"><img src="${room.product_image || ''}" alt="${room.typeName}"></div>
                             <div class="room-details-info">
@@ -452,28 +526,16 @@ jQuery(document).ready(function ($) {
                 `;
 
                 // If room has variations, show radio buttons.
-                if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
-                    // Sort variations by price in descending order
-                    const sortedVariations = room.variations.slice().sort((a, b) => {
-                        const priceA = parseFloat(a.price) || 0;
-                        const priceB = parseFloat(b.price) || 0;
-                        return priceB - priceA; // Descending order
-                    });
-                    
+                if (visibleVariations.length > 0) {
                     comboHtml += `
                         <label>Alegeți o variantă:</label>
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
 
-                    $.each(sortedVariations, function(vi, variation) {
+                    $.each(visibleVariations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
-                        
-                        if (hideSingle && isSingle) {
-                            return; // Skip rendering 'single' variation if hideSingle is true.
-                        }
-                        
                         const checkedAttr = firstVisible ? 'checked="checked"' : '';
                         firstVisible = false;
                         
@@ -494,9 +556,9 @@ jQuery(document).ready(function ($) {
                         x++;
                     });
                     comboHtml += '</ul></div>';
-                    comboHtml += `<span class="room-price">Preț: ${room.variations[0].price} lei</span>`;
+                    comboHtml += `<span class="room-price">Preț/noapte: ${visibleVariations[0].price} lei</span>`;
                 } else if (room.product_price) {
-                    comboHtml += `<span class="room-price">Preț: ${room.product_price} lei</span>`;
+                    comboHtml += `<span class="room-price">Preț/noapte: ${room.product_price} lei</span>`;
                 }
                 comboHtml += `
                             </div>
@@ -703,12 +765,33 @@ jQuery(document).ready(function ($) {
             const $roomDetails = $(el);
             const $variationSelect = $roomDetails.find('.room-variation-radio:checked');
             const productId = productIds[idx];
-            const variationId = $variationSelect.length ? $variationSelect.val() : null;
-            items.push({
-                product_id: productId,
-                variation_id: variationId,
-                quantity: 1
-            });
+            const variationId = $variationSelect.length ? parseInt($variationSelect.val(), 10) : null;
+            const selectedPlanEncoded = $roomDetails.attr('data-selected-plan');
+            let addedFromPlan = false;
+            if (selectedPlanEncoded) {
+                try {
+                    const selectedPlan = JSON.parse(decodeURIComponent(selectedPlanEncoded));
+                    if (Array.isArray(selectedPlan) && selectedPlan.length) {
+                        selectedPlan.forEach(segment => {
+                            if (segment.variation_id && segment.nights > 0) {
+                                items.push({
+                                    product_id: productId,
+                                    variation_id: segment.variation_id,
+                                    quantity: parseInt(segment.nights, 10)
+                                });
+                                addedFromPlan = true;
+                            }
+                        });
+                    }
+                } catch (e) {}
+            }
+            if (!addedFromPlan) {
+                items.push({
+                    product_id: productId,
+                    variation_id: variationId,
+                    quantity: getCurrentNights()
+                });
+            }
         });
 
         const searchParams = {
