@@ -376,6 +376,7 @@ jQuery(document).ready(function ($) {
                             const selectedNights = segmentNightsMap[variationId] || 0;
                             $option.prop('checked', selectedNights > 0);
                             $option.attr('data-plan-nights', selectedNights);
+                            $option.closest('li').toggle(selectedNights > 0);
                         });
                         if (!segments.length && plan.primaryVariationId) {
                             $room.find('.room-variation-radio[value="' + plan.primaryVariationId + '"]').prop('checked', true);
@@ -408,7 +409,9 @@ jQuery(document).ready(function ($) {
                                 price: parseFloat($option.data('price')) || 0
                             });
                             $option.attr('data-plan-nights', optionNights);
+                            $option.closest('li').show();
                         });
+                        $room.find('.room-variation-radio').not(':checked').closest('li').hide();
                         $room.attr('data-selected-plan', encodeURIComponent(JSON.stringify(segments)));
                     }
                 }
@@ -575,13 +578,20 @@ jQuery(document).ready(function ($) {
 
                 // If room has variations, show radio buttons.
                 if (visibleVariations.length > 0) {
+                    const optionsToRender = visibleVariations.filter((variation, variationIdx) => {
+                        const selectedNights = nightsByVariationId[String(variation.variation_id)] || 0;
+                        if (targetPrimaryVariationId !== null) {
+                            return selectedNights > 0;
+                        }
+                        return variationIdx === 0;
+                    });
                     comboHtml += `
-                        <label>Alegeți o variantă:</label>
+                        <label>Variantă selectată:</label>
                         <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
 
-                    $.each(visibleVariations, function(vi, variation) {
+                    $.each(optionsToRender, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
                         const selectedNightsForVariation = nightsByVariationId[String(variation.variation_id)] || 0;
@@ -597,7 +607,7 @@ jQuery(document).ready(function ($) {
                         comboHtml += `
                             <li>
                                 <label style="margin-right:10px;">
-                                    <input type="checkbox" name="room-variation-${comboId}-${roomIndex}[]" class="room-variation-radio room-variation-select" 
+                                    <input type="checkbox" name="room-variation-${comboId}-${roomIndex}[]" class="room-variation-radio room-variation-select" style="display:none;" 
                                     value="${variation.variation_id}" data-price="${variation.price}" data-image="${variation.image || ''}" 
                                     data-adultMax="${adultMax}" data-childMax="${childMax}" data-plan-nights="${selectedNightsForVariation}" ${checkedAttr}>
                                     ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}${selectedNightsForVariation > 0 ? ` <strong>(selectată ${selectedNightsForVariation} nopți)</strong>` : ''}
