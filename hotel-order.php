@@ -81,7 +81,7 @@ function masterhotel_add_multiple_to_cart() {
     foreach ($items as $item) {
         $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
         $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        $quantity = $nights;
+        $quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : $nights;
         if ($product_id) {
             // Add a unique key to force separate cart lines
             $unique_key = uniqid('line_', true);
@@ -157,4 +157,3 @@ function masterhotel_redirect_room_search_query() {
     exit;
 }
 add_action( 'template_redirect', 'masterhotel_redirect_room_search_query' );
-
