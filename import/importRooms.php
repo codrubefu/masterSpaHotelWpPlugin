@@ -369,8 +369,8 @@ class HotelRoomsImporter {
      * Create or update a WooCommerce product for a hotel room
      */
     private function create_or_update_room_product($room_data, $options) {
-        // Check if product already exists by room type
-        $existing_product = $this->find_existing_room_product($room_data['tip']);
+        // Check if product already exists by room type and hotel ID
+        $existing_product = $this->find_existing_room_product($room_data['tip'], $room_data['idhotel']);
 
         $product_id = null;
         $created = false;
@@ -427,9 +427,9 @@ class HotelRoomsImporter {
             throw new Exception('Failed to create/update product: ' . $product_id->get_error_message());
         }
 
-        // Set product category based on room type
+        // Set product category based on hotel and room type
         if (isset($options['create_categories'])) {
-            $this->set_room_category($product_id, $room_data['tiplung']);
+            $this->set_room_category($product_id, $room_data['tiplung'], $room_data['idhotel']);
         }
 
         // Add 'room' product tag
@@ -539,13 +539,20 @@ class HotelRoomsImporter {
     /**
      * Find existing room product by room number
      */
-    private function find_existing_room_product($room_type) {
+    private function find_existing_room_product($room_type,$hotel) {
         $posts = get_posts(array(
             'post_type' => 'product',
             'meta_key' => '_hotel_room_type',
             'meta_value' => $room_type,
             'posts_per_page' => 1,
-            'post_status' => 'any'
+            'post_status' => 'any',
+            'meta_query' => array(
+                array(
+                    'key' => '_hotel_id',
+                    'value' => $hotel,
+                    'compare' => '='
+                )
+            )
         ));
         
         return !empty($posts) ? $posts[0] : null;
@@ -580,10 +587,10 @@ class HotelRoomsImporter {
     }
     
     /**
-     * Set room category based on room type
+     * Set room category based on hotel ID and room type
      */
-    private function set_room_category($product_id, $room_type) {
-        // Always assign to 'Hotel' category and room type category as child
+    private function set_room_category($product_id, $room_type, $hotel_id) {
+        // Always assign to the root Hotel category, a hotel-specific category, and the room type category.
         $category_ids = array();
 
         // Create or get 'Hotel' category
@@ -600,18 +607,36 @@ class HotelRoomsImporter {
             $category_ids[] = $hotel_category_id;
         }
 
-        // Create or get room type category as child of Hotel
+        // Create or get hotel-specific category as child of Hotel.
+        $hotel_specific_category_name = sprintf('Hotel %s', $hotel_id);
+        $hotel_specific_category = get_term_by('name', $hotel_specific_category_name, 'product_cat');
+        if (!$hotel_specific_category) {
+            $hotel_specific_category_result = wp_insert_term($hotel_specific_category_name, 'product_cat', array('parent' => $hotel_category_id));
+            if (!is_wp_error($hotel_specific_category_result)) {
+                $hotel_specific_category_id = $hotel_specific_category_result['term_id'];
+            }
+        } else {
+            $hotel_specific_category_id = $hotel_specific_category->term_id;
+            if ($hotel_specific_category->parent != $hotel_category_id) {
+                wp_update_term($hotel_specific_category_id, 'product_cat', array('parent' => $hotel_category_id));
+            }
+        }
+        if (isset($hotel_specific_category_id)) {
+            $category_ids[] = $hotel_specific_category_id;
+        }
+
+        // Create or get room type category as child of the hotel-specific category.
         $room_category = get_term_by('name', $room_type, 'product_cat');
         if (!$room_category) {
-            $room_category_result = wp_insert_term($room_type, 'product_cat', array('parent' => $hotel_category_id));
+            $room_category_result = wp_insert_term($room_type, 'product_cat', array('parent' => $hotel_specific_category_id));
             if (!is_wp_error($room_category_result)) {
                 $room_category_id = $room_category_result['term_id'];
             }
         } else {
             $room_category_id = $room_category->term_id;
-            // If not already child of Hotel, update parent
-            if ($room_category->parent != $hotel_category_id) {
-                wp_update_term($room_category_id, 'product_cat', array('parent' => $hotel_category_id));
+            // If not already child of the hotel-specific category, update parent.
+            if ($room_category->parent != $hotel_specific_category_id) {
+                wp_update_term($room_category_id, 'product_cat', array('parent' => $hotel_specific_category_id));
             }
         }
         if (isset($room_category_id)) {

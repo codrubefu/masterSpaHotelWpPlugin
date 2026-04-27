@@ -495,7 +495,7 @@ jQuery(document).ready(function ($) {
         if (!append) {
             // Only add headers and filters on the first page load.
             html += '<h3>Combinații de camere disponibile</h3>';
-            html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Noblesse</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Royal</a></div>';
+            html += '<div class="select-holtes"><a href="#all" class="hotel-filter active" data-hotel="all">Toate Hotelurile</a><a href="#1" class="hotel-filter" data-hotel="1"> Hotel Corp 1</a><a href="#2" class="hotel-filter" data-hotel="2"> Hotel Corp 2</a><a href="#3" class="hotel-filter" data-hotel="3"> Hotel Corp 3</a></div>';
         }
 
         // Get search criteria from form for validation.
@@ -516,16 +516,7 @@ jQuery(document).ready(function ($) {
 
             const firstCombo = typeData.combo[0]; // Show only the first option.
             const comboId = comboCounter++;
-            const hotels = String(typeData.hotels);
-            let type;
-
-            if (/^1+$/.test(hotels)) {
-                type = 1;
-            } else if (/^2+$/.test(hotels)) {
-                type = 2;
-            } else {
-                type = 3; // For combinations like '12', '21', etc.
-            }
+            const type = String(typeData.hotels || '');
 
                 const productIds = [];
                 const productPrices = []; // collect price for each room in the combo
@@ -533,7 +524,8 @@ jQuery(document).ready(function ($) {
                 let comboHtml = `<div class="combo-option" data-room-type="${type}">`;
             
             $.each(firstCombo, function (roomIndex, room) {
-                const stars = (room.hotel == 1) ? 4 : 3;
+                const stars = room.hotel;
+            
                 let sortedVariations = [];
                 let visibleVariations = [];
                 if (room.variations && Array.isArray(room.variations) && room.variations.length > 0) {
@@ -572,7 +564,7 @@ jQuery(document).ready(function ($) {
                         <div class="room-info">
                             <div class="room-image"><img src="${room.product_image || ''}" alt="${room.typeName}"></div>
                             <div class="room-details-info">
-                                <h1><a href="${room.product_url}">Camera: ${room.typeName} (${stars} stele)</a></h1>
+                                <h1><a href="${room.product_url}">Camera: ${room.typeName} (Corp ${stars})</a></h1>
                                 <p>${room.description || ''}</p>
                 `;
 
@@ -740,12 +732,12 @@ jQuery(document).ready(function ($) {
         const selectedHotel = $(this).data('hotel');
         $(this).addClass('active');
 
-        if (selectedHotel === 'all' || selectedHotel == 3) {
+        if (selectedHotel === 'all') {
             $('.combo-option').show();
         } else {
             $('.combo-option').each(function() {
-                const roomType = $(this).data('room-type');
-                if (roomType == selectedHotel) {
+                const roomType = String($(this).attr('data-room-type') || '');
+                if (roomType.includes(String(selectedHotel))) {
                     $(this).show();
                 } else {
                     $(this).hide();
@@ -917,12 +909,12 @@ jQuery(document).ready(function ($) {
         const $active = $('.hotel-filter.active');
         if ($active.length) {
             const selectedHotel = $active.data('hotel');
-            if (selectedHotel === 'all' || selectedHotel == 3) {
+            if (selectedHotel === 'all') {
                 $('.combo-option').show();
             } else {
                 $('.combo-option').each(function() {
-                    const roomType = $(this).data('room-type');
-                    if (roomType == selectedHotel) {
+                    const roomType = String($(this).attr('data-room-type') || '');
+                    if (roomType.includes(String(selectedHotel))) {
                         $(this).show();
                     } else {
                         $(this).hide();
