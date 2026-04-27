@@ -325,6 +325,8 @@ class HotelRoomSearcher {
                                     $room['variations'][] = array(
                                         'variation_id' => $variation['variation_id'],
                                         'attributes' => $variation['attributes'],
+                                        'title' => $variation['variation_description'] ? wp_strip_all_tags($variation['variation_description']) : '',
+                                        'description' => $variation['variation_description'] ? wp_kses_post($variation['variation_description']) : '',
                                         'price' => $variation['display_price'],
                                         'regular_price' => $variation['display_regular_price'],
                                         'sale_price' => $variation['display_price'] < $variation['display_regular_price'] ? $variation['display_price'] : '',

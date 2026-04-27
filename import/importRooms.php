@@ -457,7 +457,7 @@ class HotelRoomsImporter {
             // Add attribute for variation (e.g. Tariff)
             $variation_names = array();
             foreach ($room_data['pret'] as $pret) {
-                $variation_names[] = !empty($pret['art']) ? $pret['art'] : 'Variante';
+                $variation_names[] = !empty($pret['art']) ? trim($pret['art']).'('.date('m-d', strtotime($pret['data_start'])).'-'.date('m-d', strtotime($pret['data_end'])).')' : 'Variante';
             }
             $attribute = array(
                 'name' => 'Tariff',
@@ -485,9 +485,20 @@ class HotelRoomsImporter {
 
             // Add new variations
             foreach ($room_data['pret'] as $pret) {
-                $variation_title = isset($pret['art']) && trim($pret['art']) !== '' ? trim($pret['art']) : 'Variante';
+                $variation_title = !empty($pret['art']) ? trim($pret['art']).'('.date('m-d', strtotime($pret['data_start'])).'-'.date('m-d', strtotime($pret['data_end'])).')' : 'Variante';
+                $variation_description = sprintf(
+                    'Tariff: %s, Valid from %s to %s',
+                    $variation_title,
+                    date('m-d-Y', strtotime($pret['data_start'])),
+                    date('m-d-Y', strtotime($pret['data_end']))
+                );
+                $variation_meta_info = array(
+                    'data_start' =>date('m-d', strtotime($pret['data_start'])),
+                    'data_end' =>date('m-d', strtotime($pret['data_end'])),
+                    'description' => $variation_description,
+                );
                 $variation_post = array(
-                    'post_title'  => $variation_title,
+                    'post_title'  => $variation_title ,
                     'post_name'   => 'product-' . $product_id . '-variation-' . $pret['idpret'],
                     'post_status' => 'publish',
                     'post_parent' => $product_id,
@@ -497,9 +508,13 @@ class HotelRoomsImporter {
                         '_price' => $pret['pret'],
                         '_regular_price' => $pret['pret'],
                         '_stock_status' => 'instock',
-                    )
+                        '_variation_description' => $variation_description,
+                    ),
                 );
-                wp_insert_post($variation_post);
+                $variation_id = wp_insert_post($variation_post);
+                if (!is_wp_error($variation_id) && $variation_id) {
+                    update_post_meta($variation_id, 'meta_info', $variation_meta_info);
+                }
             }
         } else {
             // Set product type to simple

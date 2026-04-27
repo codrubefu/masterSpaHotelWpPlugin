@@ -488,6 +488,7 @@ jQuery(document).ready(function ($) {
                                     data-adultMax="${adultMax}" data-childMax="${childMax}" ${checkedAttr}>
                                     ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}
                                 </label>
+                                ${variation.description ? `<div class="room-variation-description">${variation.description}</div>` : ''}
                             </li>
                         `;
                         x++;
