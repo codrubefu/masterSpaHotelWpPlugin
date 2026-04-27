@@ -289,9 +289,7 @@ jQuery(document).ready(function ($) {
 
     function getVariationPlanForStay(variations, bookingStart, bookingEnd) {
         const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)));
-        const pricedSegments = [];
-        let coveredNights = 0;
-        let totalPrice = 0;
+        const nightlyPlan = [];
         const currentYear = (new Date()).getFullYear();
 
         const normalized = (variations || []).map(v => {
@@ -308,26 +306,27 @@ jQuery(document).ready(function ($) {
             return a._start - b._start;
         });
 
-        normalized.forEach(v => {
-            if (!(v._start && v._end) || v._end <= bookingStart || v._start >= bookingEnd) return;
-            const overlapStart = new Date(Math.max(v._start.getTime(), bookingStart.getTime()));
-            const overlapEnd = new Date(Math.min(v._end.getTime(), bookingEnd.getTime()));
-            const nights = Math.max(0, Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)));
-            if (nights > 0) {
-                pricedSegments.push({ variation_id: v.variation_id, nights, price: v._price });
-                coveredNights += nights;
-                totalPrice += (nights * v._price);
-            }
-        });
-
-        if (coveredNights < totalNights && normalized.length > 0) {
-            const fallback = normalized.slice().sort((a, b) => a._price - b._price)[0];
-            const remainingNights = totalNights - coveredNights;
-            if (fallback && remainingNights > 0) {
-                pricedSegments.push({ variation_id: fallback.variation_id, nights: remainingNights, price: fallback._price });
-                totalPrice += (remainingNights * fallback._price);
+        const fallback = normalized.length ? normalized.slice().sort((a, b) => a._price - b._price)[0] : null;
+        for (let i = 0; i < totalNights; i++) {
+            const currentDate = new Date(bookingStart.getTime() + (i * 24 * 60 * 60 * 1000));
+            const candidates = normalized.filter(v => v._start && v._end && currentDate >= v._start && currentDate < v._end);
+            const selected = candidates.length ? candidates.slice().sort((a, b) => a._price - b._price)[0] : fallback;
+            if (selected) {
+                nightlyPlan.push(selected);
             }
         }
+
+        const pricedSegments = [];
+        let totalPrice = 0;
+        nightlyPlan.forEach((variation) => {
+            totalPrice += variation._price;
+            const last = pricedSegments.length ? pricedSegments[pricedSegments.length - 1] : null;
+            if (last && last.variation_id === variation.variation_id) {
+                last.nights += 1;
+            } else {
+                pricedSegments.push({ variation_id: variation.variation_id, nights: 1, price: variation._price });
+            }
+        });
 
         const primaryVariationId = pricedSegments.length ? pricedSegments[0].variation_id : null;
         return { totalPrice, segments: pricedSegments, totalNights, primaryVariationId };
@@ -525,6 +524,13 @@ jQuery(document).ready(function ($) {
                     initialPlan = getVariationPlanForStay(visibleVariations, bookingStart, bookingEnd);
                 }
                 const targetPrimaryVariationId = (initialPlan && initialPlan.primaryVariationId) ? parseInt(initialPlan.primaryVariationId, 10) : null;
+                const nightsByVariationId = {};
+                if (initialPlan && Array.isArray(initialPlan.segments)) {
+                    initialPlan.segments.forEach((segment) => {
+                        const key = String(segment.variation_id);
+                        nightsByVariationId[key] = (nightsByVariationId[key] || 0) + (parseInt(segment.nights, 10) || 0);
+                    });
+                }
                 const initialSelectedPlanAttr = (initialPlan && initialPlan.segments && initialPlan.segments.length)
                     ? ` data-selected-plan="${encodeURIComponent(JSON.stringify(initialPlan.segments))}"`
                     : '';
@@ -550,6 +556,7 @@ jQuery(document).ready(function ($) {
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
                         const shouldCheckByPlan = targetPrimaryVariationId !== null && targetPrimaryVariationId === parseInt(variation.variation_id, 10);
                         const checkedAttr = (shouldCheckByPlan || (targetPrimaryVariationId === null && firstVisible)) ? 'checked="checked"' : '';
+                        const selectedNightsForVariation = nightsByVariationId[String(variation.variation_id)] || 0;
                         if (checkedAttr) {
                             firstVisible = false;
                         }
@@ -563,7 +570,7 @@ jQuery(document).ready(function ($) {
                                     <input type="radio" name="room-variation-${comboId}-${roomIndex}" class="room-variation-radio room-variation-select" 
                                     value="${variation.variation_id}" data-price="${variation.price}" data-image="${variation.image || ''}" 
                                     data-adultMax="${adultMax}" data-childMax="${childMax}" ${checkedAttr}>
-                                    ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}
+                                    ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}${selectedNightsForVariation > 0 ? ` <strong>(selectată ${selectedNightsForVariation} nopți)</strong>` : ''}
                                 </label>
                                 ${variation.description ? `<div class="room-variation-description">${variation.description}</div>` : ''}
                             </li>
