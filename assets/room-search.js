@@ -471,7 +471,10 @@ jQuery(document).ready(function ($) {
         const totalKids = parseInt($('#kids').val()) || 0;
         const totalRooms = parseInt($('#number_of_rooms').val()) || 1;
         const hideSingle = (totalAdults > 0 && totalRooms > 0 && totalAdults % totalRooms === 0);
-        let x = 0; // Counter for radio button names.
+        const bookingStart = new Date($startDate.val());
+        const bookingEnd = new Date($endDate.val());
+        const hasBookingDates = $startDate.val() && $endDate.val() && !isNaN(bookingStart.getTime()) && !isNaN(bookingEnd.getTime());
+        let comboCounter = 0;
 
         // Loop through the combinations and build the HTML.
         $.each(data.combinations, function (roomType, typeData) {
@@ -480,6 +483,7 @@ jQuery(document).ready(function ($) {
             }
 
             const firstCombo = typeData.combo[0]; // Show only the first option.
+            const comboId = comboCounter++;
             const hotels = String(typeData.hotels);
             let type;
 
@@ -516,8 +520,16 @@ jQuery(document).ready(function ($) {
                 const roomDetailsAttr = visibleVariations.length
                     ? ` data-room-variations="${encodeURIComponent(JSON.stringify(visibleVariations))}"`
                     : '';
+                let initialPlan = null;
+                if (visibleVariations.length && hasBookingDates) {
+                    initialPlan = getVariationPlanForStay(visibleVariations, bookingStart, bookingEnd);
+                }
+                const targetPrimaryVariationId = (initialPlan && initialPlan.primaryVariationId) ? parseInt(initialPlan.primaryVariationId, 10) : null;
+                const initialSelectedPlanAttr = (initialPlan && initialPlan.segments && initialPlan.segments.length)
+                    ? ` data-selected-plan="${encodeURIComponent(JSON.stringify(initialPlan.segments))}"`
+                    : '';
                 comboHtml += `
-                    <div class="room-details"${roomDetailsAttr}>
+                    <div class="room-details"${roomDetailsAttr}${initialSelectedPlanAttr}>
                         <div class="room-info">
                             <div class="room-image"><img src="${room.product_image || ''}" alt="${room.typeName}"></div>
                             <div class="room-details-info">
@@ -536,8 +548,11 @@ jQuery(document).ready(function ($) {
                     $.each(visibleVariations, function(vi, variation) {
                         const attrs = Object.values(variation.attributes).join(', ');
                         const isSingle = attrs.toLowerCase().includes('single') || (variation.title && variation.title.toLowerCase().includes('single'));
-                        const checkedAttr = firstVisible ? 'checked="checked"' : '';
-                        firstVisible = false;
+                        const shouldCheckByPlan = targetPrimaryVariationId !== null && targetPrimaryVariationId === parseInt(variation.variation_id, 10);
+                        const checkedAttr = (shouldCheckByPlan || (targetPrimaryVariationId === null && firstVisible)) ? 'checked="checked"' : '';
+                        if (checkedAttr) {
+                            firstVisible = false;
+                        }
                         
                         const adultMax = isSingle ? 1 : room.adultMax;
                         const childMax = isSingle ? 0 : room.kidMax;
@@ -545,7 +560,7 @@ jQuery(document).ready(function ($) {
                         comboHtml += `
                             <li>
                                 <label style="margin-right:10px;">
-                                    <input type="radio" name="room-variation-${roomIndex}" class="room-variation-radio room-variation-select" 
+                                    <input type="radio" name="room-variation-${comboId}-${roomIndex}" class="room-variation-radio room-variation-select" 
                                     value="${variation.variation_id}" data-price="${variation.price}" data-image="${variation.image || ''}" 
                                     data-adultMax="${adultMax}" data-childMax="${childMax}" ${checkedAttr}>
                                     ${attrs} - ${variation.price} lei${variation.in_stock ? '' : ' (Stoc epuizat)'}
@@ -553,7 +568,6 @@ jQuery(document).ready(function ($) {
                                 ${variation.description ? `<div class="room-variation-description">${variation.description}</div>` : ''}
                             </li>
                         `;
-                        x++;
                     });
                     comboHtml += '</ul></div>';
                     comboHtml += `<span class="room-price">Preț/noapte: ${visibleVariations[0].price} lei</span>`;
