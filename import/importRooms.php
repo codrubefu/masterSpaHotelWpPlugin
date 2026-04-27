@@ -72,6 +72,13 @@ class HotelRoomsImporter {
                             </label>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">ID Hotel (optional)</th>
+                        <td>
+                            <input type="text" name="idhotel" value="" class="regular-text" placeholder="Ex: 10" />
+                            <p class="description">If set, only rooms with this <code>idhotel</code> will be imported.</p>
+                        </td>
+                    </tr>
                 </table>
                 
                 <?php wp_nonce_field('hotel_rooms_import', 'hotel_rooms_nonce'); ?>
@@ -172,15 +179,16 @@ class HotelRoomsImporter {
         try {
             $api_url = isset($_POST['api_url']) ? sanitize_url($_POST['api_url']) : $this->api_url;
             $options = isset($_POST['options']) ? $_POST['options'] : $_POST;
+            $idhotel = isset($_POST['idhotel']) ? sanitize_text_field(wp_unslash($_POST['idhotel'])) : '';
             
             // Fetch all room types data
-            $response = $this->fetch_api_data($api_url);
+            $response = $this->fetch_api_data($api_url, 1, $idhotel);
             if (!$response) {
                 wp_send_json_error('Failed to fetch data from API. Check the import log for details.');
             }
             
             // Import all room types
-            $result = $this->import_grouped_rooms($response, $options);
+            $result = $this->import_grouped_rooms($response, $options, $idhotel);
             wp_send_json_success($result);
             
         } catch (Exception $e) {
@@ -191,7 +199,7 @@ class HotelRoomsImporter {
     /**
      * Import grouped room data from the new API structure
      */
-    private function import_grouped_rooms($room_types_data, $options) {
+    private function import_grouped_rooms($room_types_data, $options, $idhotel_filter = '') {
         $created = 0;
         $updated = 0;
         $skipped = 0;
@@ -206,6 +214,13 @@ class HotelRoomsImporter {
             if (!isset($room_type['tip']) || !isset($room_type['room_numbers']) || !is_array($room_type['room_numbers'])) {
                 $this->log('Skipping invalid room type data: ' . json_encode($room_type));
                 $errors++;
+                continue;
+            }
+
+            $room_idhotel = isset($room_type['idhotel']) ? (string) $room_type['idhotel'] : '';
+            if ($idhotel_filter !== '' && $room_idhotel !== (string) $idhotel_filter) {
+                $this->log('Skipping room type ' . ($room_type['tip'] ?? '') . ' because idhotel does not match filter: ' . $idhotel_filter);
+                $skipped++;
                 continue;
             }
 
@@ -258,9 +273,12 @@ class HotelRoomsImporter {
     /**
      * Fetch data from API endpoint
      */
-    private function fetch_api_data($url, $page = 1) {
+    private function fetch_api_data($url, $page = 1, $idhotel = '') {
         // For the grouped-by-type endpoint, we don't need pagination
         $full_url = $url;
+        if ($idhotel !== '') {
+            $full_url = add_query_arg('idhotel', rawurlencode($idhotel), $full_url);
+        }
         
         $this->log('Attempting to connect to: ' . $full_url);
         
@@ -370,7 +388,7 @@ class HotelRoomsImporter {
      */
     private function create_or_update_room_product($room_data, $options) {
         // Check if product already exists by room type
-        $existing_product = $this->find_existing_room_product($room_data['tip']);
+        $existing_product = $this->find_existing_room_product($room_data['tip'], $room_data['idhotel'] ?? '');
 
         $product_id = null;
         $created = false;
@@ -539,11 +557,25 @@ class HotelRoomsImporter {
     /**
      * Find existing room product by room number
      */
-    private function find_existing_room_product($room_type) {
+    private function find_existing_room_product($room_type, $idhotel = '') {
+        $meta_query = array(
+            'relation' => 'AND',
+            array(
+                'key' => '_hotel_room_type',
+                'value' => $room_type,
+            ),
+        );
+
+        if ($idhotel !== '') {
+            $meta_query[] = array(
+                'key' => '_hotel_id',
+                'value' => (string) $idhotel,
+            );
+        }
+
         $posts = get_posts(array(
             'post_type' => 'product',
-            'meta_key' => '_hotel_room_type',
-            'meta_value' => $room_type,
+            'meta_query' => $meta_query,
             'posts_per_page' => 1,
             'post_status' => 'any'
         ));
