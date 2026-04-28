@@ -96,9 +96,9 @@ jQuery(document).ready(function ($) {
 
     // Update minimum end date when start date changes to ensure valid date ranges.
     $startDate.on('change', function () {
-        const startDate = new Date($startDate.val());
+        const startDate = parseSearchDate($startDate.val());
         startDate.setDate(startDate.getDate() + 1);
-        const minEndDate = startDate.toISOString().split('T')[0];
+        const minEndDate = formatExplanationDate(startDate);
         $endDate.attr('min', minEndDate);
 
         // If the current end date is before the new minimum, update it.
@@ -267,14 +267,28 @@ jQuery(document).ready(function ($) {
     function getCurrentNights() {
         let nights = 1;
         try {
-            const sd = new Date($startDate.val());
-            const ed = new Date($endDate.val());
+            const sd = parseSearchDate($startDate.val());
+            const ed = parseSearchDate($endDate.val());
             if ($startDate.val() && $endDate.val()) {
                 const diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
                 nights = diff > 0 ? diff : 1;
             }
         } catch (e) { nights = 1; }
         return nights;
+    }
+
+    function parseSearchDate(value) {
+        if (!value || typeof value !== 'string') return new Date(NaN);
+        const parts = value.split('-');
+        if (parts.length !== 3) return new Date(NaN);
+
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        const day = parseInt(parts[2], 10);
+
+        if (!year || !month || !day) return new Date(NaN);
+
+        return new Date(year, month - 1, day, 12, 0, 0, 0);
     }
 
     function parseMonthDayToDate(md, baseYear) {
@@ -284,19 +298,75 @@ jQuery(document).ready(function ($) {
         const month = parseInt(parts[0], 10);
         const day = parseInt(parts[1], 10);
         if (!month || !day) return null;
-        return new Date(baseYear, month - 1, day);
+        return new Date(baseYear, month - 1, day, 12, 0, 0, 0);
+    }
+
+    function formatExplanationDate(date) {
+        if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
+    function buildRoomSelectionReasonHtml(plan) {
+        if (!plan || !Array.isArray(plan.nightlySelections) || !plan.nightlySelections.length) {
+            return '';
+        }
+
+        let html = '<div class="room-selection-reason"><strong>Motiv selecție tarif:</strong><ul>';
+        plan.nightlySelections.forEach((selection) => {
+            const dateLabel = escapeHtml(selection.dateLabel);
+            const titleLabel = escapeHtml(selection.title || 'Tarif standard');
+            const priceLabel = escapeHtml(selection.price);
+            const reasonText = selection.usedFallback
+                ? `nu exista un tarif activ pentru această dată, așa că s-a folosit cel mai mic preț disponibil de ${priceLabel} lei`
+                : `în această dată intervalul tarifului este activ și are cel mai mic preț disponibil, ${priceLabel} lei`;
+            html += `<li><strong>${dateLabel}</strong>: ${titleLabel} deoarece ${reasonText}.</li>`;
+        });
+        html += '</ul></div>';
+
+        return html;
+    }
+
+    function updateRoomSelectionReason($room, plan) {
+        const explanationHtml = buildRoomSelectionReasonHtml(plan);
+        const $existingExplanation = $room.find('.room-selection-reason');
+
+        if (!explanationHtml) {
+            $existingExplanation.remove();
+            return;
+        }
+
+        if ($existingExplanation.length) {
+            $existingExplanation.replaceWith(explanationHtml);
+            return;
+        }
+
+        $room.find('.room-details-info').append(explanationHtml);
     }
 
     function getVariationPlanForStay(variations, bookingStart, bookingEnd) {
-        const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)));
+        const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)) + 1);
         const nightlyPlan = [];
-        const currentYear = (new Date()).getFullYear();
+        const nightlySelections = [];
+        const bookingYear = bookingStart.getFullYear();
 
         const normalized = (variations || []).map(v => {
-            const start = parseMonthDayToDate(v.data_start, currentYear);
-            let end = parseMonthDayToDate(v.data_end, currentYear);
+            const start = parseMonthDayToDate(v.data_start, bookingYear);
+            let end = parseMonthDayToDate(v.data_end, bookingYear);
             if (start && end && end <= start) {
-                end = new Date(currentYear + 1, end.getMonth(), end.getDate());
+                end = new Date(bookingYear + 1, end.getMonth(), end.getDate(), 12, 0, 0, 0);
             }
             return Object.assign({}, v, { _start: start, _end: end, _price: parseFloat(v.price) || 0 });
         }).sort((a, b) => {
@@ -309,10 +379,17 @@ jQuery(document).ready(function ($) {
         const fallback = normalized.length ? normalized.slice().sort((a, b) => a._price - b._price)[0] : null;
         for (let i = 0; i < totalNights; i++) {
             const currentDate = new Date(bookingStart.getTime() + (i * 24 * 60 * 60 * 1000));
-            const candidates = normalized.filter(v => v._start && v._end && currentDate >= v._start && currentDate < v._end);
+            const candidates = normalized.filter(v => v._start && v._end && currentDate >= v._start && currentDate <= v._end);
             const selected = candidates.length ? candidates.slice().sort((a, b) => a._price - b._price)[0] : fallback;
             if (selected) {
                 nightlyPlan.push(selected);
+                nightlySelections.push({
+                    variation_id: selected.variation_id,
+                    dateLabel: formatExplanationDate(currentDate),
+                    title: selected.title || Object.values(selected.attributes || {}).join(', '),
+                    price: selected._price,
+                    usedFallback: !candidates.length
+                });
             }
         }
 
@@ -329,7 +406,7 @@ jQuery(document).ready(function ($) {
         });
 
         const primaryVariationId = pricedSegments.length ? pricedSegments[0].variation_id : null;
-        return { totalPrice, segments: pricedSegments, totalNights, primaryVariationId };
+        return { totalPrice, segments: pricedSegments, totalNights, primaryVariationId, nightlySelections };
     }
 
     // --- Room Variation Price Update ---
@@ -346,8 +423,8 @@ jQuery(document).ready(function ($) {
         $(root).find('.combo-option').each(function(){
             const $combo = $(this);
             const nights = getCurrentNights();
-            const bookingStart = new Date($startDate.val());
-            const bookingEnd = new Date($endDate.val());
+            const bookingStart = parseSearchDate($startDate.val());
+            const bookingEnd = parseSearchDate($endDate.val());
             let totalAll = 0;
             $combo.find('.room-details').each(function(idx, el){
                 const $room = $(el);
@@ -378,12 +455,16 @@ jQuery(document).ready(function ($) {
                             $option.attr('data-plan-nights', selectedNights);
                             $option.closest('li').toggle(selectedNights > 0);
                         });
+                        updateRoomSelectionReason($room, plan);
                         if (!segments.length && plan.primaryVariationId) {
                             $room.find('.room-variation-radio[value="' + plan.primaryVariationId + '"]').prop('checked', true);
                         }
                     } catch (e) {
                         segments = [];
+                        updateRoomSelectionReason($room, null);
                     }
+                } else {
+                    updateRoomSelectionReason($room, null);
                 }
 
                 if (!roomTotal) {
@@ -503,8 +584,8 @@ jQuery(document).ready(function ($) {
         const totalKids = parseInt($('#kids').val()) || 0;
         const totalRooms = parseInt($('#number_of_rooms').val()) || 1;
         const hideSingle = (totalAdults > 0 && totalRooms > 0 && totalAdults % totalRooms === 0);
-        const bookingStart = new Date($startDate.val());
-        const bookingEnd = new Date($endDate.val());
+        const bookingStart = parseSearchDate($startDate.val());
+        const bookingEnd = parseSearchDate($endDate.val());
         const hasBookingDates = $startDate.val() && $endDate.val() && !isNaN(bookingStart.getTime()) && !isNaN(bookingEnd.getTime());
         let comboCounter = 0;
 
@@ -559,6 +640,7 @@ jQuery(document).ready(function ($) {
                 const initialSelectedPlanAttr = (initialPlan && initialPlan.segments && initialPlan.segments.length)
                     ? ` data-selected-plan="${encodeURIComponent(JSON.stringify(initialPlan.segments))}"`
                     : '';
+                const initialSelectionReasonHtml = initialPlan ? buildRoomSelectionReasonHtml(initialPlan) : '';
                 comboHtml += `
                     <div class="room-details"${roomDetailsAttr}${initialSelectedPlanAttr}>
                         <div class="room-info">
@@ -613,6 +695,7 @@ jQuery(document).ready(function ($) {
                 } else if (room.product_price) {
                     comboHtml += `<span class="room-price">Preț/noapte: ${room.product_price} lei</span>`;
                 }
+                comboHtml += initialSelectionReasonHtml;
                 comboHtml += `
                             </div>
                         </div>
@@ -637,8 +720,8 @@ jQuery(document).ready(function ($) {
             // calculate nights from selected dates
             var nights = 1;
             try {
-                var sd = new Date($startDate.val());
-                var ed = new Date($endDate.val());
+                var sd = parseSearchDate($startDate.val());
+                var ed = parseSearchDate($endDate.val());
                 if ($startDate.val() && $endDate.val()) {
                     var diff = Math.ceil((ed - sd) / (1000 * 60 * 60 * 24));
                     nights = diff > 0 ? diff : 1;

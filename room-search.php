@@ -314,37 +314,53 @@ class HotelRoomSearcher {
                             $room['product_image'] = $placeholder_url = wc_placeholder_img_src();
                         }
 
-                        // Get all variations for this product (if variable)
+                        // Load tariff child entries even when the parent product stays simple.
                         if ('product_variation' === get_post_type($product->ID) || get_post_type($product->ID) === 'product') {
-                            $product_obj = wc_get_product($product->ID);
                             $cheapest = null;
-                            if ($product_obj && $product_obj->is_type('variable')) {
-                                $variations = $product_obj->get_available_variations();
+                            $variation_posts = get_posts(array(
+                                'post_parent' => $product->ID,
+                                'post_type' => 'product_variation',
+                                'numberposts' => -1,
+                                'post_status' => 'publish',
+                                'orderby' => 'menu_order ID',
+                                'order' => 'ASC',
+                            ));
+                            if (!empty($variation_posts)) {
                                 $room['variations'] = array();
-                                foreach ($variations as $variation) {
-                                    $variation_meta_info = get_post_meta($variation['variation_id'], 'meta_info', true);
+                                foreach ($variation_posts as $variation_post) {
+                                    $variation_product = wc_get_product($variation_post->ID);
+                                    if (!$variation_product) {
+                                        continue;
+                                    }
+
+                                    $variation_meta_info = get_post_meta($variation_post->ID, 'meta_info', true);
                                     $variation_data_start = '';
                                     $variation_data_end = '';
                                     if (is_array($variation_meta_info)) {
                                         $variation_data_start = isset($variation_meta_info['data_start']) ? sanitize_text_field($variation_meta_info['data_start']) : '';
                                         $variation_data_end = isset($variation_meta_info['data_end']) ? sanitize_text_field($variation_meta_info['data_end']) : '';
                                     }
+                                    $variation_price = (float) $variation_product->get_price();
+                                    $variation_regular_price = (float) $variation_product->get_regular_price();
+                                    $variation_description = get_post_meta($variation_post->ID, '_variation_description', true);
                                     $room['variations'][] = array(
-                                        'variation_id' => $variation['variation_id'],
-                                        'attributes' => $variation['attributes'],
-                                        'title' => $variation['variation_description'] ? wp_strip_all_tags($variation['variation_description']) : '',
-                                        'description' => $variation['variation_description'] ? wp_kses_post($variation['variation_description']) : '',
+                                        'variation_id' => $variation_post->ID,
+                                        'attributes' => array(
+                                            'attribute_tariff' => get_post_meta($variation_post->ID, 'attribute_tariff', true),
+                                        ),
+                                        'title' => $variation_description ? wp_strip_all_tags($variation_description) : '',
+                                        'description' => $variation_description ? wp_kses_post($variation_description) : '',
                                         'data_start' => $variation_data_start,
                                         'data_end' => $variation_data_end,
-                                        'price' => $variation['display_price'],
-                                        'regular_price' => $variation['display_regular_price'],
-                                        'sale_price' => $variation['display_price'] < $variation['display_regular_price'] ? $variation['display_price'] : '',
-                                        'in_stock' => $variation['is_in_stock'],
-                                        'sku' => $variation['sku'],
-                                        'image' => isset($variation['image']['src']) ? $variation['image']['src'] : '',
+                                        'price' => $variation_price,
+                                        'regular_price' => $variation_regular_price,
+                                        'sale_price' => $variation_price < $variation_regular_price ? $variation_price : '',
+                                        'in_stock' => $variation_product->is_in_stock(),
+                                        'sku' => $variation_product->get_sku(),
+                                        'image' => '',
                                     );
-                                    if ($cheapest === null || $variation['display_price'] < $cheapest) {
-                                        $cheapest = $variation['display_price'];
+                                    if ($cheapest === null || $variation_price < $cheapest) {
+                                        $cheapest = $variation_price;
                                     }
                                 }
                             }
