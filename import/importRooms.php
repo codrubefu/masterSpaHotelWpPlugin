@@ -381,7 +381,21 @@ class HotelRoomsImporter {
             return array('created' => false, 'updated' => false, 'product_id' => $existing_product->ID);
         }
 
-        $is_variable = isset($room_data['pret']) && is_array($room_data['pret']) && count($room_data['pret']) > 1;
+        $has_tariff_variations = isset($room_data['pret']) && is_array($room_data['pret']) && count($room_data['pret']) > 1;
+        $lowest_price = 0;
+
+        if (isset($room_data['pret']) && is_array($room_data['pret'])) {
+            foreach ($room_data['pret'] as $pret) {
+                if (!isset($pret['pret'])) {
+                    continue;
+                }
+
+                $current_price = (float) $pret['pret'];
+                if ($lowest_price <= 0 || $current_price < $lowest_price) {
+                    $lowest_price = $current_price;
+                }
+            }
+        }
 
         // Prepare product data
         $product_data = array(
@@ -392,7 +406,7 @@ class HotelRoomsImporter {
                 '_visibility' => 'visible',
                 '_stock_status' => 'instock',
                 '_manage_stock' => 'no',
-                '_virtual' => $room_data['virtual'] ? 'yes' : 'no',
+                '_virtual' => 'yes',
                 '_sold_individually' => 'no',
                 '_hotel_room_number' => $room_data['nr'],
                 '_hotel_room_type' => $room_data['tip'],
@@ -401,18 +415,11 @@ class HotelRoomsImporter {
                 '_hotel_kids_max' => $room_data['kidMax'],
                 '_hotel_baby_bed' => $room_data['babyBed'],
                 '_hotel_id' => $room_data['idhotel'],
+                '_price' => $lowest_price,
+                '_regular_price' => $lowest_price,
+                '_masterhotel_has_tariff_variations' => $has_tariff_variations ? 'yes' : 'no',
             )
         );
-
-        if ($is_variable) {
-            $product_data['meta_input']['_product_version'] = 'variable';
-        } else {
-            // Set price for simple product
-            $first_pret = is_array($room_data['pret']) ? reset($room_data['pret']) : null;
-            $price = $first_pret && isset($first_pret['pret']) ? $first_pret['pret'] : 0;
-            $product_data['meta_input']['_price'] = $price;
-            $product_data['meta_input']['_regular_price'] = $price;
-        }
 
         if ($existing_product) {
             $product_data['ID'] = $existing_product->ID;
@@ -449,12 +456,22 @@ class HotelRoomsImporter {
         // Set product attributes
         $this->set_room_attributes($product_id, $room_data);
 
-        // Handle variable product and variations
-        if ($is_variable) {
-            // Set product type to variable
-            wp_set_object_terms($product_id, 'variable', 'product_type');
+        // Parent room products stay simple so they can be added directly to cart.
+        wp_set_object_terms($product_id, 'simple', 'product_type');
 
-            // Add attribute for variation (e.g. Tariff)
+        // Remove existing tariff children before rebuilding them from the latest payload.
+        $existing_variations = get_posts(array(
+            'post_parent' => $product_id,
+            'post_type' => 'product_variation',
+            'numberposts' => -1,
+            'post_status' => 'any'
+        ));
+        foreach ($existing_variations as $variation) {
+            wp_delete_post($variation->ID, true);
+        }
+
+        if ($has_tariff_variations) {
+            // Keep tariff labels on the parent so the custom room search can expose them.
             $variation_names = array();
             foreach ($room_data['pret'] as $pret) {
                 $variation_names[] = !empty($pret['art']) ? trim($pret['art']).'('.date('m-d', strtotime($pret['data_start'])).'-'.date('m-d', strtotime($pret['data_end'])).')' : 'Variante';
@@ -464,7 +481,7 @@ class HotelRoomsImporter {
                 'value' => implode(' | ', $variation_names),
                 'position' => 5,
                 'is_visible' => 1,
-                'is_variation' => 1,
+                'is_variation' => 0,
                 'is_taxonomy' => 0
             );
             $attributes = get_post_meta($product_id, '_product_attributes', true);
@@ -472,18 +489,7 @@ class HotelRoomsImporter {
             $attributes['tariff'] = $attribute;
             update_post_meta($product_id, '_product_attributes', $attributes);
 
-            // Remove existing variations
-            $existing_variations = get_posts(array(
-                'post_parent' => $product_id,
-                'post_type' => 'product_variation',
-                'numberposts' => -1,
-                'post_status' => 'any'
-            ));
-            foreach ($existing_variations as $variation) {
-                wp_delete_post($variation->ID, true);
-            }
-
-            // Add new variations
+            // Store tariff entries as child posts used by the custom availability flow.
             foreach ($room_data['pret'] as $pret) {
                 $variation_title = !empty($pret['art']) ? trim($pret['art']).'('.date('m-d', strtotime($pret['data_start'])).'-'.date('m-d', strtotime($pret['data_end'])).')' : 'Variante';
                 $variation_description = sprintf(
@@ -516,9 +522,6 @@ class HotelRoomsImporter {
                     update_post_meta($variation_id, 'meta_info', $variation_meta_info);
                 }
             }
-        } else {
-            // Set product type to simple
-            wp_set_object_terms($product_id, 'simple', 'product_type');
         }
 
         $this->log(sprintf(
