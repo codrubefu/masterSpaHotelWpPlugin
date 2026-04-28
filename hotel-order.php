@@ -14,6 +14,76 @@ function add_custom_order_meta_on_create($order_id) {
         add_post_meta($order_id, '_order_info',  json_encode($_SESSION['hotel_search_params']));
 }
 
+/**
+ * Aggregate cart request items so that all variations of the same parent
+ * product are merged into a single parent product line with:
+ * - total quantity = sum of all variation quantities
+ * - unit price = weighted average from variation prices
+ *
+ * @param array $items
+ * @return array
+ */
+function masterhotel_aggregate_items_by_parent_product($items) {
+    $grouped = array();
+
+    foreach ($items as $item) {
+        $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
+        $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
+        $quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : 1;
+
+        if (!$product_id) {
+            continue;
+        }
+
+        $parent_product_id = $product_id;
+        $unit_price = 0.0;
+
+        if ($variation_id) {
+            $variation_product = wc_get_product($variation_id);
+            if (!$variation_product) {
+                continue;
+            }
+
+            $parent_product_id = $variation_product->get_parent_id() ? intval($variation_product->get_parent_id()) : $product_id;
+            $unit_price = (float)$variation_product->get_price();
+        } else {
+            $product = wc_get_product($product_id);
+            if (!$product) {
+                continue;
+            }
+
+            $unit_price = (float)$product->get_price();
+        }
+
+        if (!isset($grouped[$parent_product_id])) {
+            $grouped[$parent_product_id] = array(
+                'product_id' => $parent_product_id,
+                'quantity' => 0,
+                'total_value' => 0.0,
+            );
+        }
+
+        $grouped[$parent_product_id]['quantity'] += $quantity;
+        $grouped[$parent_product_id]['total_value'] += ($unit_price * $quantity);
+    }
+
+    $aggregated_items = array();
+    foreach ($grouped as $group) {
+        if ($group['quantity'] <= 0) {
+            continue;
+        }
+
+        $weighted_unit_price = $group['total_value'] / $group['quantity'];
+        $aggregated_items[] = array(
+            'product_id' => $group['product_id'],
+            'quantity' => $group['quantity'],
+            'weighted_unit_price' => $weighted_unit_price,
+        );
+    }
+
+    return $aggregated_items;
+}
+
 
 // Display '_order_info' in WooCommerce admin order details as a formatted table in Romanian
 add_action('woocommerce_admin_order_data_after_order_details', function($order){
@@ -78,21 +148,35 @@ function masterhotel_add_multiple_to_cart() {
         $interval = $start->diff($end);
         $nights = max(1, (int)$interval->format('%a'));
     }
+    $items_with_default_quantity = array();
     foreach ($items as $item) {
-        $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
-        $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        $quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : $nights;
-        if ($product_id) {
-            // Add a unique key to force separate cart lines
-            $unique_key = uniqid('line_', true);
-            $custom_cart_item_data = array_merge(array('masterhotel_unique_key' => $unique_key), $booking_meta);
-            if ($variation_id) {
-                WC()->cart->add_to_cart($product_id, $quantity, $variation_id, array(), $custom_cart_item_data);
-            } else {
-                WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $custom_cart_item_data);
-            }
-            $added++;
-        }
+        $item_quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : $nights;
+        $items_with_default_quantity[] = array(
+            'product_id' => isset($item['product_id']) ? intval($item['product_id']) : 0,
+            'variation_id' => isset($item['variation_id']) ? intval($item['variation_id']) : 0,
+            'quantity' => $item_quantity,
+        );
+    }
+
+    $aggregated_items = masterhotel_aggregate_items_by_parent_product($items_with_default_quantity);
+
+    foreach ($aggregated_items as $item) {
+        $product_id = $item['product_id'];
+        $quantity = $item['quantity'];
+        $weighted_unit_price = $item['weighted_unit_price'];
+
+        // Add a unique key to force separate cart lines
+        $unique_key = uniqid('line_', true);
+        $custom_cart_item_data = array_merge(
+            array(
+                'masterhotel_unique_key' => $unique_key,
+                'masterhotel_custom_unit_price' => $weighted_unit_price,
+            ),
+            $booking_meta
+        );
+
+        WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $custom_cart_item_data);
+        $added++;
     }
     wp_send_json_success(array(
         'added' => $added,
@@ -102,6 +186,33 @@ function masterhotel_add_multiple_to_cart() {
 
 add_action('wp_ajax_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
 add_action('wp_ajax_nopriv_masterhotel_add_multiple_to_cart', 'masterhotel_add_multiple_to_cart');
+
+/**
+ * Apply custom weighted unit prices (saved in cart item meta) to cart items.
+ */
+function masterhotel_apply_custom_weighted_price($cart) {
+    if (is_admin() && !defined('DOING_AJAX')) {
+        return;
+    }
+
+    if (!$cart || !method_exists($cart, 'get_cart')) {
+        return;
+    }
+
+    foreach ($cart->get_cart() as $cart_item_key => $cart_item) {
+        if (
+            isset($cart_item['masterhotel_custom_unit_price']) &&
+            isset($cart_item['data']) &&
+            is_object($cart_item['data'])
+        ) {
+            $custom_price = (float)$cart_item['masterhotel_custom_unit_price'];
+            if ($custom_price > 0) {
+                $cart_item['data']->set_price($custom_price);
+            }
+        }
+    }
+}
+add_action('woocommerce_before_calculate_totals', 'masterhotel_apply_custom_weighted_price', 20, 1);
 
 function redirect_cart_to_checkout() {
     if ( function_exists('is_cart') && is_cart() ) {
