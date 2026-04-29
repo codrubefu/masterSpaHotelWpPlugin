@@ -59,6 +59,8 @@ class HotelRoomSearcher {
         wp_localize_script('master-hotel-room-search', 'hotelRoomSearchVars', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('hotel_search_nonce'),
+            'is_admin_logged_in' => current_user_can('manage_options'),
+            'is_user_logged_in' => is_user_logged_in(),
         ));
     }
     

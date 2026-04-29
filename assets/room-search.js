@@ -28,6 +28,8 @@ jQuery(document).ready(function ($) {
     const $searchBtn = $('.search-btn');
     const $resetBtn = $('.reset-btn');
     const $formFields = $form.find('input, select, button:not(.reset-btn)');
+    const canViewAdminVariations = !!(window.hotelRoomSearchVars && window.hotelRoomSearchVars.is_admin_logged_in);
+    const isLoggedInUser = !!(window.hotelRoomSearchVars && window.hotelRoomSearchVars.is_user_logged_in);
     let hasAutoSubmittedFromQuery = false;
 
         // Inject CSS for combo breakdown to match the radio area
@@ -320,7 +322,7 @@ jQuery(document).ready(function ($) {
     }
 
     function buildRoomSelectionReasonHtml(plan) {
-        if (!plan || !Array.isArray(plan.nightlySelections) || !plan.nightlySelections.length) {
+        if (!canViewAdminVariations || !plan || !Array.isArray(plan.nightlySelections) || !plan.nightlySelections.length) {
             return '';
         }
 
@@ -498,7 +500,6 @@ jQuery(document).ready(function ($) {
                 }
 
                 totalAll += roomTotal;
-                $room.find('.room-price').text(`Preț total sejur: ${roomTotal.toFixed(2)} lei`);
                 $combo.find('.combo-room-unitprice[data-room-index="' + idx + '"]').text(nightly.toFixed(2));
                 $combo.find('.combo-room-subtotal[data-room-index="' + idx + '"]').text(roomTotal.toFixed(2));
             });
@@ -660,8 +661,7 @@ jQuery(document).ready(function ($) {
                         return variationIdx === 0;
                     });
                     comboHtml += `
-                        <label>Variantă selectată:</label>
-                        <div class="room-variation-radio-group" data-room-index="${roomIndex}"><ul>
+                        <div class="room-variation-radio-group"${isLoggedInUser ? '' : ' style="display:none;"'} data-room-index="${roomIndex}"><ul>
                     `;
                     let firstVisible = true;
 
@@ -691,9 +691,11 @@ jQuery(document).ready(function ($) {
                         `;
                     });
                     comboHtml += '</ul></div>';
-                    comboHtml += `<span class="room-price">Preț/noapte: ${visibleVariations[0].price} lei</span>`;
+                } else if (visibleVariations.length > 0) {
+                    const visiblePrice = (initialPlan && initialPlan.totalNights > 0)
+                        ? (initialPlan.totalPrice / initialPlan.totalNights)
+                        : (parseFloat(visibleVariations[0].price) || 0);
                 } else if (room.product_price) {
-                    comboHtml += `<span class="room-price">Preț/noapte: ${room.product_price} lei</span>`;
                 }
                 comboHtml += initialSelectionReasonHtml;
                 comboHtml += `
