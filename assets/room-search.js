@@ -359,7 +359,7 @@ jQuery(document).ready(function ($) {
     }
 
     function getVariationPlanForStay(variations, bookingStart, bookingEnd) {
-        const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)) + 1);
+           const totalNights = Math.max(1, Math.ceil((bookingEnd - bookingStart) / (1000 * 60 * 60 * 24)));
         const nightlyPlan = [];
         const nightlySelections = [];
         const bookingYear = bookingStart.getFullYear();
