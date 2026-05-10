@@ -78,38 +78,21 @@ function masterhotel_add_multiple_to_cart() {
         $interval = $start->diff($end);
         $nights = max(1, (int)$interval->format('%a'));
     }
-    // Group identical product + variation pairs and preserve room count in quantity.
-    $grouped_items = array();
     foreach ($items as $item) {
         $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
         $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        if (!$product_id) {
-            continue;
+        $quantity = $nights;
+        if ($product_id) {
+            // Add a unique key to force separate cart lines
+            $unique_key = uniqid('line_', true);
+            $custom_cart_item_data = array_merge(array('masterhotel_unique_key' => $unique_key), $booking_meta);
+            if ($variation_id) {
+                WC()->cart->add_to_cart($product_id, $quantity, $variation_id, array(), $custom_cart_item_data);
+            } else {
+                WC()->cart->add_to_cart($product_id, $quantity, 0, array(), $custom_cart_item_data);
+            }
+            $added++;
         }
-
-        $group_key = $product_id . ':' . $variation_id;
-        if (!isset($grouped_items[$group_key])) {
-            $grouped_items[$group_key] = array(
-                'product_id' => $product_id,
-                'variation_id' => $variation_id,
-                'rooms_count' => 0,
-            );
-        }
-        $grouped_items[$group_key]['rooms_count']++;
-    }
-
-    foreach ($grouped_items as $grouped_item) {
-        $quantity = max(1, $nights * intval($grouped_item['rooms_count']));
-        $custom_cart_item_data = array_merge($booking_meta, array(
-            'masterhotel_rooms_count' => intval($grouped_item['rooms_count']),
-        ));
-
-        if ($grouped_item['variation_id']) {
-            WC()->cart->add_to_cart($grouped_item['product_id'], $quantity, $grouped_item['variation_id'], array(), $custom_cart_item_data);
-        } else {
-            WC()->cart->add_to_cart($grouped_item['product_id'], $quantity, 0, array(), $custom_cart_item_data);
-        }
-        $added += intval($grouped_item['rooms_count']);
     }
     wp_send_json_success(array(
         'added' => $added,
