@@ -95,9 +95,47 @@ jQuery(document).ready(function ($) {
     const today = new Date().toISOString().split('T')[0];
     $startDate.attr('min', today);
     $endDate.attr('min', today);
+    const blockedDateRanges = Array.isArray(window.hotelRoomSearchVars?.blocked_date_ranges)
+        ? window.hotelRoomSearchVars.blocked_date_ranges
+        : [];
+
+    function isDateBlocked(dateString) {
+        if (!dateString) {
+            return false;
+        }
+
+        const selected = new Date(`${dateString}T00:00:00`).getTime();
+
+        return blockedDateRanges.some((range) => {
+            const rangeStart = new Date(`${range.start}T00:00:00`).getTime();
+            const rangeEnd = new Date(`${range.end}T23:59:59`).getTime();
+            return selected >= rangeStart && selected <= rangeEnd;
+        });
+    }
+
+    function isRangeBlocked(startDate, endDate) {
+        if (!startDate || !endDate) {
+            return false;
+        }
+
+        const selectedStart = new Date(`${startDate}T00:00:00`).getTime();
+        const selectedEnd = new Date(`${endDate}T00:00:00`).getTime();
+
+        return blockedDateRanges.some((range) => {
+            const rangeStart = new Date(`${range.start}T00:00:00`).getTime();
+            const rangeEnd = new Date(`${range.end}T23:59:59`).getTime();
+            return selectedStart <= rangeEnd && selectedEnd > rangeStart;
+        });
+    }
 
     // Update minimum end date when start date changes to ensure valid date ranges.
     $startDate.on('change', function () {
+        if (isDateBlocked($startDate.val())) {
+            alert('Data de check-in este blocată. Te rugăm să alegi altă dată.');
+            $startDate.val('');
+            return;
+        }
+
         const startDate = parseSearchDate($startDate.val());
         startDate.setDate(startDate.getDate() + 1);
         const minEndDate = formatExplanationDate(startDate);
@@ -106,6 +144,13 @@ jQuery(document).ready(function ($) {
         // If the current end date is before the new minimum, update it.
         if ($endDate.val() && $endDate.val() <= $startDate.val()) {
             $endDate.val(minEndDate);
+        }
+    });
+
+    $endDate.on('change', function () {
+        if (isDateBlocked($endDate.val()) || isRangeBlocked($startDate.val(), $endDate.val())) {
+            alert('Data de check-out sau intervalul selectat este blocat. Te rugăm să alegi alte date.');
+            $endDate.val('');
         }
     });
 
@@ -510,6 +555,11 @@ jQuery(document).ready(function ($) {
     // --- Search Form Submission ---
     $form.on('submit', function (e) {
         e.preventDefault();
+
+        if (isDateBlocked($startDate.val()) || isDateBlocked($endDate.val()) || isRangeBlocked($startDate.val(), $endDate.val())) {
+            $searchResults.html('<div class="error-message">Intervalul selectat este blocat pentru rezervare.</div>');
+            return;
+        }
 
         // Gather form data for the AJAX request.
         const formData = {

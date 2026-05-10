@@ -61,7 +61,13 @@ class HotelRoomSearcher {
             'nonce'    => wp_create_nonce('hotel_search_nonce'),
             'is_admin_logged_in' => current_user_can('manage_options'),
             'is_user_logged_in' => is_user_logged_in(),
+            'blocked_date_ranges' => $this->get_blocked_date_ranges(),
         ));
+    }
+
+    private function get_blocked_date_ranges() {
+        $raw_ranges = MasterHotelConfig::get_config('blocked_date_ranges', '');
+        return MasterHotelConfig::parse_blocked_date_ranges($raw_ranges);
     }
     
     /**
@@ -185,6 +191,10 @@ class HotelRoomSearcher {
                 wp_send_json_error('Data de check-in nu poate fi în trecut');
             }
 
+            if ($this->is_date_range_blocked($search_params['start_date'], $search_params['end_date'])) {
+                wp_send_json_error('Intervalul selectat nu este disponibil pentru rezervare.');
+            }
+
 
             // Search for combinations
             $api_response = $this->search_room_combinations($search_params);
@@ -260,6 +270,23 @@ class HotelRoomSearcher {
         }
 
         return $data;
+    }
+
+    private function is_date_range_blocked($start_date, $end_date) {
+        $blocked_ranges = $this->get_blocked_date_ranges();
+        $selected_start = strtotime($start_date);
+        $selected_end = strtotime($end_date);
+
+        foreach ($blocked_ranges as $range) {
+            $blocked_start = strtotime($range['start']);
+            $blocked_end = strtotime($range['end'] . ' 23:59:59');
+
+            if ($selected_start <= $blocked_end && $selected_end > $blocked_start) {
+                return true;
+            }
+        }
+
+        return false;
     }
     
     /**
