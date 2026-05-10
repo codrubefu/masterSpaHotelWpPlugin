@@ -16,27 +16,27 @@ function add_custom_order_meta_on_create($order_id) {
 
 /**
  * Aggregate cart request items so that all variations of the same parent
- * product are merged into a single parent product line with:
- * - total quantity = sum of all variation quantities
- * - unit price = weighted average from variation prices
+ * product are merged into a single parent product line.
+ *
+ * Business rule:
+ * - each distinct product is charged exactly 200 RON, regardless of quantity
+ * - quantity in cart is forced to 1 for each distinct product
  *
  * @param array $items
  * @return array
  */
 function masterhotel_aggregate_items_by_parent_product($items) {
+    $fixed_unit_price = 200.0;
     $grouped = array();
 
     foreach ($items as $item) {
         $product_id = isset($item['product_id']) ? intval($item['product_id']) : 0;
         $variation_id = isset($item['variation_id']) ? intval($item['variation_id']) : 0;
-        $quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : 1;
-
         if (!$product_id) {
             continue;
         }
 
         $parent_product_id = $product_id;
-        $unit_price = 0.0;
 
         if ($variation_id) {
             $variation_product = wc_get_product($variation_id);
@@ -45,39 +45,28 @@ function masterhotel_aggregate_items_by_parent_product($items) {
             }
 
             $parent_product_id = $variation_product->get_parent_id() ? intval($variation_product->get_parent_id()) : $product_id;
-            $unit_price = (float)$variation_product->get_price();
         } else {
             $product = wc_get_product($product_id);
             if (!$product) {
                 continue;
             }
-
-            $unit_price = (float)$product->get_price();
         }
 
         if (!isset($grouped[$parent_product_id])) {
             $grouped[$parent_product_id] = array(
                 'product_id' => $parent_product_id,
-                'quantity' => 0,
-                'total_value' => 0.0,
+                'quantity' => 1,
+                'weighted_unit_price' => $fixed_unit_price,
             );
         }
-
-        $grouped[$parent_product_id]['quantity'] += $quantity;
-        $grouped[$parent_product_id]['total_value'] += ($unit_price * $quantity);
     }
 
     $aggregated_items = array();
     foreach ($grouped as $group) {
-        if ($group['quantity'] <= 0) {
-            continue;
-        }
-
-        $weighted_unit_price = $group['total_value'] / $group['quantity'];
         $aggregated_items[] = array(
             'product_id' => $group['product_id'],
             'quantity' => $group['quantity'],
-            'weighted_unit_price' => $weighted_unit_price,
+            'weighted_unit_price' => $group['weighted_unit_price'],
         );
     }
 
