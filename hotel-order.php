@@ -60,16 +60,33 @@ function masterhotel_aggregate_items_by_parent_product($items) {
                 'product_id' => $parent_product_id,
                 'quantity' => 1,
                 'weighted_unit_price' => $fixed_unit_price,
+                'original_total_price' => 0.0,
+                'original_total_nights' => 0,
             );
+        }
+
+        $original_unit_price = isset($item['original_unit_price']) ? (float) $item['original_unit_price'] : 0.0;
+        $original_quantity = isset($item['quantity']) ? max(1, intval($item['quantity'])) : 1;
+        if ($original_unit_price > 0) {
+            $grouped[$group_key]['original_total_price'] += ($original_unit_price * $original_quantity);
+            $grouped[$group_key]['original_total_nights'] += $original_quantity;
         }
     }
 
     $aggregated_items = array();
     foreach ($grouped as $group) {
+        $original_unit_price = 0.0;
+        if (!empty($group['original_total_nights'])) {
+            $original_unit_price = $group['original_total_price'] / $group['original_total_nights'];
+        }
+
         $aggregated_items[] = array(
             'product_id' => $group['product_id'],
             'quantity' => $group['quantity'],
             'weighted_unit_price' => $group['weighted_unit_price'],
+            'original_unit_price' => $original_unit_price,
+            'original_total_price' => $group['original_total_price'],
+            'original_total_nights' => $group['original_total_nights'],
         );
     }
 
@@ -148,6 +165,7 @@ function masterhotel_add_multiple_to_cart() {
             'variation_id' => isset($item['variation_id']) ? intval($item['variation_id']) : 0,
             'quantity' => $item_quantity,
             'room_slot' => isset($item['room_slot']) ? intval($item['room_slot']) : -1,
+            'original_unit_price' => isset($item['original_unit_price']) ? (float) $item['original_unit_price'] : 0.0,
         );
     }
 
@@ -157,6 +175,9 @@ function masterhotel_add_multiple_to_cart() {
         $product_id = $item['product_id'];
         $quantity = $item['quantity'];
         $weighted_unit_price = $item['weighted_unit_price'];
+        $original_unit_price = isset($item['original_unit_price']) ? (float) $item['original_unit_price'] : 0.0;
+        $original_total_price = isset($item['original_total_price']) ? (float) $item['original_total_price'] : 0.0;
+        $original_total_nights = isset($item['original_total_nights']) ? intval($item['original_total_nights']) : 0;
 
         // Add a unique key to force separate cart lines
         $unique_key = uniqid('line_', true);
@@ -164,6 +185,9 @@ function masterhotel_add_multiple_to_cart() {
             array(
                 'masterhotel_unique_key' => $unique_key,
                 'masterhotel_custom_unit_price' => $weighted_unit_price,
+                'masterhotel_original_unit_price' => $original_unit_price,
+                'masterhotel_original_total_price' => $original_total_price,
+                'masterhotel_original_total_nights' => $original_total_nights,
             ),
             $booking_meta
         );
@@ -261,3 +285,23 @@ function masterhotel_redirect_room_search_query() {
     exit;
 }
 add_action( 'template_redirect', 'masterhotel_redirect_room_search_query' );
+
+
+/**
+ * Persist original (pre-fixed) pricing data from cart item to order item meta
+ * so it can be sent to external API/webhook.
+ */
+function masterhotel_add_original_price_meta_to_order_item($item, $cart_item_key, $values, $order) {
+    $meta_keys = array(
+        'masterhotel_original_unit_price',
+        'masterhotel_original_total_price',
+        'masterhotel_original_total_nights',
+    );
+
+    foreach ($meta_keys as $meta_key) {
+        if (isset($values[$meta_key])) {
+            $item->add_meta_data($meta_key, $values[$meta_key], true);
+        }
+    }
+}
+add_action('woocommerce_checkout_create_order_line_item', 'masterhotel_add_original_price_meta_to_order_item', 10, 4);

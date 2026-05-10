@@ -50,6 +50,10 @@ add_action('woocommerce_order_status_processing', function($order_id) {
 		}
 		$item_data['product_meta_input'] = $product_meta;
 		$item_data['name'] = strip_tags($item_data['name']);
+		$item_data['item_meta'] = array();
+		foreach ($item->get_meta_data() as $item_meta) {
+			$item_data['item_meta'][$item_meta->key] = $item_meta->value;
+		}
 		$order_data['items'][] = $item_data;
 	}
 	$order_data['meta'] = array();
