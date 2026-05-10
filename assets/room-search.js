@@ -127,11 +127,62 @@ jQuery(document).ready(function ($) {
             return selectedStart <= rangeEnd && selectedEnd > rangeStart;
         });
     }
+    function getBlockedRangeInfo(startDate, endDate) {
+        const selectedStart = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
+        const selectedEnd = endDate ? new Date(`${endDate}T00:00:00`).getTime() : null;
+
+        for (const range of blockedDateRanges) {
+            const rangeStart = new Date(`${range.start}T00:00:00`).getTime();
+            const rangeEnd = new Date(`${range.end}T23:59:59`).getTime();
+
+            const startsInside = selectedStart !== null && selectedStart >= rangeStart && selectedStart <= rangeEnd;
+            const endsInside = selectedEnd !== null && selectedEnd >= rangeStart && selectedEnd <= rangeEnd;
+            const overlapsRange = selectedStart !== null && selectedEnd !== null && selectedStart <= rangeEnd && selectedEnd > rangeStart;
+
+            if (startsInside || endsInside || overlapsRange) {
+                return range;
+            }
+        }
+
+        return null;
+    }
+
+    function showBlockedDatePopup(message) {
+        let $popup = $('#blocked-date-popup');
+        if (!$popup.length) {
+            $popup = $(`
+                <div id="blocked-date-popup" class="blocked-date-popup-overlay" style="display:none;">
+                    <div class="blocked-date-popup">
+                        <button type="button" class="blocked-date-popup-close" aria-label="Închide">&times;</button>
+                        <h4>Date indisponibile</h4>
+                        <p class="blocked-date-popup-message"></p>
+                        <button type="button" class="blocked-date-popup-ok">Am înțeles</button>
+                    </div>
+                </div>
+            `);
+            $('body').append($popup);
+
+            $popup.on('click', '.blocked-date-popup-close, .blocked-date-popup-ok', function () {
+                $popup.fadeOut(150);
+            });
+
+            $popup.on('click', function (event) {
+                if ($(event.target).is('#blocked-date-popup')) {
+                    $popup.fadeOut(150);
+                }
+            });
+        }
+
+        $popup.find('.blocked-date-popup-message').text(message);
+        $popup.fadeIn(150);
+    }
 
     // Update minimum end date when start date changes to ensure valid date ranges.
     $startDate.on('change', function () {
         if (isDateBlocked($startDate.val())) {
-            alert('Data de check-in este blocată. Te rugăm să alegi altă dată.');
+            const blockedRange = getBlockedRangeInfo($startDate.val(), null);
+            const details = blockedRange ? ` Interval indisponibil: ${blockedRange.start} - ${blockedRange.end}.` : '';
+            showBlockedDatePopup(`Data de check-in este blocată.${details} Te rugăm să alegi altă dată.`);
             $startDate.val('');
             return;
         }
@@ -149,7 +200,9 @@ jQuery(document).ready(function ($) {
 
     $endDate.on('change', function () {
         if (isDateBlocked($endDate.val()) || isRangeBlocked($startDate.val(), $endDate.val())) {
-            alert('Data de check-out sau intervalul selectat este blocat. Te rugăm să alegi alte date.');
+            const blockedRange = getBlockedRangeInfo($startDate.val(), $endDate.val());
+            const details = blockedRange ? ` Interval indisponibil: ${blockedRange.start} - ${blockedRange.end}.` : '';
+            showBlockedDatePopup(`Data de check-out sau intervalul selectat este blocat.${details} Te rugăm să alegi alte date.`);
             $endDate.val('');
         }
     });
@@ -557,7 +610,10 @@ jQuery(document).ready(function ($) {
         e.preventDefault();
 
         if (isDateBlocked($startDate.val()) || isDateBlocked($endDate.val()) || isRangeBlocked($startDate.val(), $endDate.val())) {
-            $searchResults.html('<div class="error-message">Intervalul selectat este blocat pentru rezervare.</div>');
+            const blockedRange = getBlockedRangeInfo($startDate.val(), $endDate.val());
+            const details = blockedRange ? ` (${blockedRange.start} - ${blockedRange.end})` : '';
+            $searchResults.html(`<div class="error-message">Intervalul selectat este blocat pentru rezervare${details}.</div>`);
+            showBlockedDatePopup(`Intervalul selectat este indisponibil pentru rezervare.${details ? ` Interval blocat: ${blockedRange.start} - ${blockedRange.end}.` : ''}`);
             return;
         }
 
