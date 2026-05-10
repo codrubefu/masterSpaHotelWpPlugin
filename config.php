@@ -202,6 +202,15 @@ class MasterHotelConfig {
             'search_settings'
         );
 
+        // Blocked date ranges
+        add_settings_field(
+            'blocked_date_ranges',
+            'Blocked date ranges',
+            array($this, 'blocked_date_ranges_callback'),
+            'masterhotel-config',
+            'search_settings'
+        );
+
 
     }
 
@@ -264,6 +273,10 @@ class MasterHotelConfig {
 
         if (isset($input['max_rooms'])) {
             $sanitized['max_rooms'] = intval($input['max_rooms']);
+        }
+
+        if (isset($input['blocked_date_ranges'])) {
+            $sanitized['blocked_date_ranges'] = $this->sanitize_blocked_ranges($input['blocked_date_ranges']);
         }
 
         return $sanitized;
@@ -425,6 +438,63 @@ class MasterHotelConfig {
         $value = $this->get_option('max_rooms', 5);
         echo '<input type="number" name="' . $this->option_name . '[max_rooms]" value="' . esc_attr($value) . '" min="1" max="10" />';
         echo '<p class="description">Maximum number of rooms selectable in the search form</p>';
+    }
+
+    public function blocked_date_ranges_callback() {
+        $value = $this->get_option('blocked_date_ranges', '');
+        echo '<textarea name="' . $this->option_name . '[blocked_date_ranges]" rows="6" class="large-text code" placeholder="2026-08-01,2026-08-10&#10;2026-12-24,2026-12-31">' . esc_textarea($value) . '</textarea>';
+        echo '<p class="description">Poți adăuga oricâte intervale dorești, câte unul pe linie, în format <code>YYYY-MM-DD,YYYY-MM-DD</code>. Toate intervalele vor fi blocate în căutarea publică.</p>';
+    }
+
+    private function sanitize_blocked_ranges($raw_ranges) {
+        $valid_ranges = self::parse_blocked_date_ranges($raw_ranges);
+        $serialized_ranges = array();
+
+        foreach ($valid_ranges as $range) {
+            $serialized_ranges[] = $range['start'] . ',' . $range['end'];
+        }
+
+        return implode("\n", $serialized_ranges);
+    }
+
+    private static function is_valid_date($date) {
+        $date_time = DateTime::createFromFormat('Y-m-d', $date);
+        return $date_time && $date_time->format('Y-m-d') === $date;
+    }
+
+    public static function parse_blocked_date_ranges($raw_ranges) {
+        $lines = preg_split('/\r\n|\r|\n/', (string) $raw_ranges);
+        $ranges = array();
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+
+            $parts = array_map('trim', explode(',', $line));
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $start = sanitize_text_field($parts[0]);
+            $end = sanitize_text_field($parts[1]);
+
+            if (!self::is_valid_date($start) || !self::is_valid_date($end)) {
+                continue;
+            }
+
+            if (strtotime($start) > strtotime($end)) {
+                continue;
+            }
+
+            $ranges[] = array(
+                'start' => $start,
+                'end' => $end,
+            );
+        }
+
+        return $ranges;
     }
 }
 // Initialize the configuration
