@@ -1024,7 +1024,8 @@ jQuery(document).ready(function ($) {
                                 items.push({
                                     product_id: productId,
                                     variation_id: segment.variation_id,
-                                    quantity: parseInt(segment.nights, 10)
+                                    quantity: parseInt(segment.nights, 10),
+                                    room_slot: idx
                                 });
                                 addedFromPlan = true;
                             }
@@ -1047,14 +1048,16 @@ jQuery(document).ready(function ($) {
                         items.push({
                             product_id: productId,
                             variation_id: parseInt($option.val(), 10),
-                            quantity: optionNights
+                            quantity: optionNights,
+                            room_slot: idx
                         });
                     });
                 } else {
                     items.push({
                         product_id: productId,
                         variation_id: null,
-                        quantity: getCurrentNights()
+                        quantity: getCurrentNights(),
+                        room_slot: idx
                     });
                 }
             }
