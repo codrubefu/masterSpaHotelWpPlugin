@@ -127,7 +127,6 @@ jQuery(document).ready(function ($) {
             return selectedStart <= rangeEnd && selectedEnd > rangeStart;
         });
     }
-
     function getBlockedRangeInfo(startDate, endDate) {
         const selectedStart = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
         const selectedEnd = endDate ? new Date(`${endDate}T00:00:00`).getTime() : null;
