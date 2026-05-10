@@ -37,6 +37,7 @@ function masterhotel_aggregate_items_by_parent_product($items) {
         }
 
         $parent_product_id = $product_id;
+        $room_slot = isset($item['room_slot']) ? intval($item['room_slot']) : -1;
 
         if ($variation_id) {
             $variation_product = wc_get_product($variation_id);
@@ -52,8 +53,10 @@ function masterhotel_aggregate_items_by_parent_product($items) {
             }
         }
 
-        if (!isset($grouped[$parent_product_id])) {
-            $grouped[$parent_product_id] = array(
+        $group_key = $parent_product_id . ':' . $room_slot;
+
+        if (!isset($grouped[$group_key])) {
+            $grouped[$group_key] = array(
                 'product_id' => $parent_product_id,
                 'quantity' => 1,
                 'weighted_unit_price' => $fixed_unit_price,
@@ -144,6 +147,7 @@ function masterhotel_add_multiple_to_cart() {
             'product_id' => isset($item['product_id']) ? intval($item['product_id']) : 0,
             'variation_id' => isset($item['variation_id']) ? intval($item['variation_id']) : 0,
             'quantity' => $item_quantity,
+            'room_slot' => isset($item['room_slot']) ? intval($item['room_slot']) : -1,
         );
     }
 
