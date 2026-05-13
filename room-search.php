@@ -313,7 +313,11 @@ class HotelRoomSearcher {
                     }
 
                     // Find corresponding WooCommerce product
-                    $product = $this->find_product_by_room_type($room['type']);
+
+                    // Find corresponding WooCommerce product
+                    $hotel_id = isset($room['hotel']) ? intval($room['hotel']) : 0;
+                    $product = $this->find_product_by_room_type($room['type'], $hotel_id);
+                    
                     $related_article_id = get_post_meta($product->ID, '_related_article_id', true);
                     // Only query for related article if not already set
                     $related_article = $this->find_related_article_id_by_room_type($related_article_id);
@@ -468,15 +472,43 @@ class HotelRoomSearcher {
     /**
      * Find WooCommerce product by room type
      */
-    private function find_product_by_room_type($room_tip) {
-        // Now search by room type (tip) instead of room number
+   private function find_product_by_room_type($room_tip, $hotel_id = 0) {
+        // Search by room type and, when available, hotel ID to avoid cross-hotel mismatches.
+        $meta_query = array(
+            'relation' => 'AND',
+            array(
+                'key' => '_hotel_room_type',
+                'value' => $room_tip,
+                'compare' => '='
+            )
+        );
+
+        if (!empty($hotel_id)) {
+            $meta_query[] = array(
+                'key' => '_hotel_id',
+                'value' => strval($hotel_id),
+                'compare' => '='
+            );
+        }
+
         $posts = get_posts(array(
             'post_type' => 'product',
-            'meta_key' => '_hotel_room_type',
-            'meta_value' => $room_tip, // $room_tip now represents the type
+            'meta_query' => $meta_query,
             'posts_per_page' => 1,
             'post_status' => 'publish'
         ));
+
+        if (empty($posts) && !empty($hotel_id)) {
+            // Backward-compatible fallback for legacy products without _hotel_id.
+            $posts = get_posts(array(
+                'post_type' => 'product',
+                'meta_key' => '_hotel_room_type',
+                'meta_value' => $room_tip,
+                'posts_per_page' => 1,
+                'post_status' => 'publish'
+            ));
+        }
+
         return !empty($posts) ? $posts[0] : null;
     }
     
