@@ -1025,7 +1025,8 @@ jQuery(document).ready(function ($) {
                                     product_id: productId,
                                     variation_id: segment.variation_id,
                                     quantity: parseInt(segment.nights, 10),
-                                    room_slot: idx
+                                    room_slot: idx,
+                                    original_unit_price: parseFloat(segment.price) || 0
                                 });
                                 addedFromPlan = true;
                             }
@@ -1049,7 +1050,8 @@ jQuery(document).ready(function ($) {
                             product_id: productId,
                             variation_id: parseInt($option.val(), 10),
                             quantity: optionNights,
-                            room_slot: idx
+                            room_slot: idx,
+                            original_unit_price: parseFloat($option.data('price')) || 0
                         });
                     });
                 } else {
@@ -1057,7 +1059,8 @@ jQuery(document).ready(function ($) {
                         product_id: productId,
                         variation_id: null,
                         quantity: getCurrentNights(),
-                        room_slot: idx
+                        room_slot: idx,
+                        original_unit_price: parseFloat($roomDetails.find('.room-price').text().replace(/[^0-9.]/g, '')) || 0
                     });
                 }
             }
